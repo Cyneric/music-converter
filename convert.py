@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 
+#
+# @file .convert.py
+#
+# @created Fri Jul 26 2024
+# @Author Christian Blank <christianblank91@gmail.com>
+#
+# @Copyright (c) 2024
+#
+
 import os
 import subprocess
 import sys

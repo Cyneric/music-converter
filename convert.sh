@@ -1,5 +1,14 @@
 #!/bin/bash
 
+#
+# @file .convert.sh
+#
+# @created Fri Jul 26 2024
+# @Author Christian Blank <christianblank91@gmail.com>
+#
+# @Copyright (c) 2024
+#
+
 # usage: ./convert.sh input_path output_path music_format bitrate
 # example: ./convert.sh ~/Music ~/Music/converted mp3 320k
 
