@@ -9,6 +9,19 @@
 # @Copyright (c) 2024
 #
 
+# This script converts audio files to different formats and stores them in a specified directory.
+# It also copies image files and .nfo files to the output directory.
+# The script requires ffmpeg to be installed on the system.
+
+# The script takes four arguments:
+# 1. The input path where the files are located
+# 2. The output path where the converted files should be stored
+# 3. The music format to convert the audio files to (mp3, flac, wav, m4a, ogg, opus, wma, aac)
+# 4. The bitrate to use for the conversion (32k, 64k, 128k, 192k, 256k, 320k)
+
+# usage: python convert.py /path/to/input /path/to/output mp3 320k
+# example: python convert.py ~/Music ~/converted mp3 320k
+
 import os
 import subprocess
 import sys

@@ -9,6 +9,16 @@
 # @Copyright (c) 2024
 #
 
+# This script converts audio files to a specified format and bitrate using ffmpeg.
+# It also copies image files and nfo files to the output directory.
+# The script requires ffmpeg to be installed on the system.
+
+# The script takes four arguments:
+# 1. input_path: The path to the directory containing the audio files to convert.
+# 2. output_path: The path to the directory where the converted files will be saved.
+# 3. music_format: The format to convert the audio files to (mp3, flac, wav, m4a, ogg, opus, wma, aac).
+# 4. bitrate: The bitrate to use for the conversion (32k, 64k, 128k, 192k, 256k, 320k).
+
 # usage: ./convert.sh input_path output_path music_format bitrate
 # example: ./convert.sh ~/Music ~/Music/converted mp3 320k
 
