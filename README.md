@@ -9,14 +9,14 @@ You can either use the bash script or the python script, they both do the same t
 #### Example
 
 ```bash
-./convert.sh ~/Music ~/Music/converted mp3 320k
+./convert.sh ~/Music ~/converted mp3 320k
 ```
 
 ### Using Python
 #### Example
 
 ```python
-python convert.py ~/Music ~/Music/converted mp3 320k
+python convert.py ~/Music ~/converted mp3 320k
 ```
 
 
