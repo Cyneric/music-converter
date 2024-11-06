@@ -240,16 +240,11 @@ increment_count() {
 }
 
 # Function: get_lock_file_path
-# Description: Get the path to the lock file for the given output directory
-#             Creates the lock file if it doesn't exist
-#
-# Arguments:
-#   $1 - Output directory path
+# Description: Get the path to the lock file, which is stored next to the script
 #
 # Returns: Path to lock file
 get_lock_file_path() {
-    local output_dir="$1"
-    local lock_file="$output_dir/.convert.lock"
+    local lock_file="$(dirname "$0")/.convert.lock"
 
     # Create lock file if it doesn't exist
     if [ ! -f "$lock_file" ]; then
@@ -347,7 +342,7 @@ process_files() {
 
     # Get lock file path and read existing conversions
     local lock_file
-    lock_file=$(get_lock_file_path "$([ "$replace_mode" = true ] && echo "$input_path" || echo "$output_path")")
+    lock_file=$(get_lock_file_path)
     local lock_data
     lock_data=$(read_lock_file "$lock_file")
 
@@ -368,7 +363,7 @@ process_files() {
             fi
 
             if [ "$file_format" = "$music_format" ] && [ "$file_bitrate" = "$bitrate" ]; then
-                echo "Skipping previously converted file (from lock): $file"
+                echo "Skipping previously processed file (from lock): $file"
                 ((skipped_count++))
                 increment_count "${file##*.}"
                 continue
@@ -382,6 +377,15 @@ process_files() {
 
         if [ "$current_format" = "$music_format" ] && [ "$current_bitrate" = "$bitrate" ]; then
             echo "Skipping file already in correct format and bitrate: $file"
+            # Add to lock file
+            local timestamp
+            timestamp=$(date -Iseconds)
+            new_conversions=$(echo "$new_conversions" | jq --arg file "$file" \
+                --arg format "$music_format" \
+                --arg bitrate "$bitrate" \
+                --arg ts "$timestamp" \
+                --arg status "correct_format" \
+                '. + {($file): {"format": $format, "bitrate": $bitrate, "timestamp": $ts, "status": $status}}')
             ((correct_count++))
             increment_count "${file##*.}"
             continue

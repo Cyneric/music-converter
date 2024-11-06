@@ -282,21 +282,17 @@ def get_audio_info(file_path):
         logging.error(f"Error getting audio info for {file_path}: {str(e)}")
         return None, None
 
-def get_lock_file_path(output_path):
+def get_lock_file_path():
     """
-    Get the path to the lock file for the given output directory.
+    Get the path to the lock file, which is stored next to the script.
     Creates the lock file if it doesn't exist.
-
-    Args:
-        output_path (str): Path to output directory
-
+    
     Returns:
         str: Path to lock file
     """
-    lock_file = os.path.join(output_path, '.convert.lock')
+    lock_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.convert.lock')
     if not os.path.exists(lock_file):
         try:
-            # Create empty lock file with initial empty JSON object
             with open(lock_file, 'w', encoding='utf-8') as f:
                 json.dump({}, f, indent=2, ensure_ascii=False)
             logging.info(f"Created new lock file: {lock_file}")
@@ -367,7 +363,7 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
     correct_files = []   # List to store files already in correct format/bitrate
 
     # Get lock file path
-    lock_file = get_lock_file_path(output_path if not replace_mode else input_path)
+    lock_file = get_lock_file_path()
     converted_files_info = read_lock_file(lock_file)
     new_conversions = {}
 
@@ -392,16 +388,23 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
                 # Check if file is in lock file
                 file_info = converted_files_info.get(file_path)
                 if file_info and file_info.get('format') == music_format and file_info.get('bitrate') == bitrate:
-                    logging.info(f"Skipping previously converted file (from lock): {file_path}")
+                    logging.info(f"Skipping previously processed file (from lock): {file_path}")
                     skipped_files.append(file_path)
                     increment_count(ext)
                     continue
 
                 # Check current format and bitrate
                 current_format, current_bitrate = get_audio_info(file_path)
-
+                
                 if current_format == music_format and current_bitrate == bitrate:
                     logging.info(f"Skipping file already in correct format and bitrate: {file_path}")
+                    # Add to lock file info
+                    new_conversions[file_path] = {
+                        'format': music_format,
+                        'bitrate': bitrate,
+                        'timestamp': datetime.now().isoformat(),
+                        'status': 'correct_format'
+                    }
                     correct_files.append(file_path)
                     increment_count(ext)
                     continue
@@ -435,7 +438,8 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
                         new_conversions[file_path] = {
                             'format': music_format,
                             'bitrate': bitrate,
-                            'timestamp': datetime.now().isoformat()
+                            'timestamp': datetime.now().isoformat(),
+                            'status': 'converted'
                         }
                         converted_files.append(file_path)
                     else:
