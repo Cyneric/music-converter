@@ -319,6 +319,55 @@ def get_audio_info(file_path):
         logging.error(f"Error getting audio info for {file_path}: {str(e)}")
         return None, None
 
+def get_lock_file_path(output_path):
+    """
+    Get the path to the lock file for the given output directory.
+    
+    Args:
+        output_path (str): Path to output directory
+        
+    Returns:
+        str: Path to lock file
+    """
+    return os.path.join(output_path, '.convert.lock')
+
+def read_lock_file(lock_file):
+    """
+    Read the lock file containing information about converted files.
+    
+    Args:
+        lock_file (str): Path to lock file
+        
+    Returns:
+        dict: Dictionary with file paths as keys and conversion info as values
+    """
+    try:
+        if os.path.exists(lock_file):
+            with open(lock_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logging.error(f"Error reading lock file: {str(e)}")
+    return {}
+
+def update_lock_file(lock_file, converted_files_info):
+    """
+    Update the lock file with new conversion information.
+    
+    Args:
+        lock_file (str): Path to lock file
+        converted_files_info (dict): Dictionary with conversion information to add
+    """
+    try:
+        # Read existing data
+        lock_data = read_lock_file(lock_file)
+        # Update with new data
+        lock_data.update(converted_files_info)
+        # Write back to file
+        with open(lock_file, 'w', encoding='utf-8') as f:
+            json.dump(lock_data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logging.error(f"Error updating lock file: {str(e)}")
+
 def process_files(input_path, output_path, music_format, bitrate, replace_mode):
     """
     Process all files in the input directory, converting audio files and copying others as needed.
@@ -344,6 +393,11 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
     failed_files = []    # List to store failed conversions
     correct_files = []   # List to store files already in correct format/bitrate
 
+    # Get lock file path
+    lock_file = get_lock_file_path(output_path if not replace_mode else input_path)
+    converted_files_info = read_lock_file(lock_file)
+    new_conversions = {}
+
     def increment_count(ext):
         if ext not in file_count:
             file_count[ext] = 0
@@ -362,10 +416,17 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
 
             # Process audio files
             if ext in {"mp3", "flac", "wav", "m4a", "ogg", "opus", "wma", "aac"}:
+                # Check if file is in lock file
+                file_info = converted_files_info.get(file_path)
+                if file_info and file_info.get('format') == music_format and file_info.get('bitrate') == bitrate:
+                    logging.info(f"Skipping previously converted file (from lock): {file_path}")
+                    skipped_files.append(file_path)
+                    increment_count(ext)
+                    continue
+
                 # Check current format and bitrate
                 current_format, current_bitrate = get_audio_info(file_path)
-
-                # Skip if already in correct format and bitrate
+                
                 if current_format == music_format and current_bitrate == bitrate:
                     logging.info(f"Skipping file already in correct format and bitrate: {file_path}")
                     correct_files.append(file_path)
@@ -390,12 +451,19 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
 
                     if result.returncode == 0:
                         if replace_mode:
-                            os.remove(file_path)  # Remove original file
+                            os.remove(file_path)
                             final_path = os.path.join(target_dir, f"{os.path.splitext(file)[0]}.{music_format}")
-                            os.rename(output_file, final_path)  # Rename temp file to final name
+                            os.rename(output_file, final_path)
                             logging.info(f"Successfully converted and replaced: {file_path}")
                         else:
                             logging.info(f"Successfully converted: {file_path} -> {output_file}")
+                        
+                        # Add to lock file info
+                        new_conversions[file_path] = {
+                            'format': music_format,
+                            'bitrate': bitrate,
+                            'timestamp': datetime.now().isoformat()
+                        }
                         converted_files.append(file_path)
                     else:
                         logging.error(f"Failed to convert {file_path}: {result.stderr}")
@@ -419,6 +487,10 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
                     except Exception as e:
                         logging.error(f"Failed to copy {file_path}: {str(e)}")
 
+    # Update lock file with new conversions
+    if new_conversions:
+        update_lock_file(lock_file, new_conversions)
+
     # Print and log summary
     summary = "\nConversion Summary:\n" + "="*50 + "\n"
     summary += f"Total files processed: {sum(file_count.values())}\n"
@@ -426,17 +498,16 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
     summary += f"Skipped (already converted): {len(skipped_files)}\n"
     summary += f"Skipped (correct format/bitrate): {len(correct_files)}\n"
     summary += f"Failed conversions: {len(failed_files)}\n\n"
-
+    
     summary += "File counts by extension:\n" + "-"*30 + "\n"
     for ext, count in file_count.items():
         summary += f"{ext}: {count} files\n"
-
+    
     if failed_files:
         summary += "\nFailed files:\n" + "-"*30 + "\n"
         for file in failed_files:
             summary += f"- {file}\n"
-
-    # Only log the summary, don't print it
+    
     logging.info(summary)
 
     return file_count, converted_files, skipped_files, failed_files, correct_files

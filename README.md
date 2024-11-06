@@ -9,6 +9,7 @@ This repository contains two scripts (Python and Bash) for converting audio file
 - Preserve metadata during conversion
 - Handle image files and NFO files
 - Detailed logging and conversion summary
+- Lock file system to track conversions
 - Two operation modes:
   - Copy mode: Convert files to a new directory
   - Replace mode: Convert and replace original files
@@ -167,14 +168,52 @@ python convert.py ~/Music mp3 320k --replace
 - Converts audio files to the specified format
 - Copies image and NFO files to the new location
 - Preserves original files
+- Creates/updates lock file to track conversions
 - Generates detailed logs of all operations
 
 ### Replace Mode
 - Converts audio files in place
 - Replaces original files with converted versions
 - Preserves image and NFO files unchanged
+- Creates/updates lock file to track conversions
 - No output directory needed
 - Generates detailed logs of all operations
+
+## Lock File System
+
+The scripts maintain a lock file (.convert.lock) to track converted files and avoid unnecessary reprocessing.
+
+### Lock File Location
+- Copy mode: `.convert.lock` in the output directory
+- Replace mode: `.convert.lock` in the input directory
+
+### Lock File Format
+```json
+{
+  "/path/to/file1.mp3": {
+    "format": "mp3",
+    "bitrate": "320k",
+    "timestamp": "2024-11-06T15:30:45.123456"
+  },
+  "/path/to/file2.flac": {
+    "format": "flac",
+    "bitrate": "320k",
+    "timestamp": "2024-11-06T15:31:12.345678"
+  }
+}
+```
+
+### Lock File Benefits
+- Avoids unnecessary reprocessing of already converted files
+- Maintains conversion history
+- Improves performance on subsequent runs
+- Tracks conversion parameters for each file
+
+### Processing Order
+1. Check lock file for previous conversions
+2. Check current file format and bitrate
+3. Process only files that need conversion
+4. Update lock file with new conversions
 
 ## Logging
 

@@ -239,6 +239,64 @@ increment_count() {
     ((file_count[$ext]++))
 }
 
+# Function: get_lock_file_path
+# Description: Get the path to the lock file for the given output directory
+#
+# Arguments:
+#   $1 - Output directory path
+#
+# Returns: Path to lock file
+get_lock_file_path() {
+    local output_dir="$1"
+    echo "$output_dir/.convert.lock"
+}
+
+# Function: read_lock_file
+# Description: Read the lock file containing information about converted files
+#
+# Arguments:
+#   $1 - Path to lock file
+#
+# Returns: JSON string with conversion information (empty if no lock file)
+read_lock_file() {
+    local lock_file="$1"
+    if [ -f "$lock_file" ]; then
+        cat "$lock_file"
+    else
+        echo "{}"
+    fi
+}
+
+# Function: update_lock_file
+# Description: Update the lock file with new conversion information
+#
+# Arguments:
+#   $1 - Path to lock file
+#   $2 - JSON string with new conversion information
+update_lock_file() {
+    local lock_file="$1"
+    local new_data="$2"
+    local temp_file
+
+    # Create temporary file
+    temp_file=$(mktemp)
+
+    if [ -f "$lock_file" ]; then
+        # Merge existing data with new data using jq if available
+        if command -v jq &>/dev/null; then
+            jq -s '.[0] * .[1]' "$lock_file" <(echo "$new_data") >"$temp_file"
+        else
+            # Fallback to simple overwrite if jq is not available
+            echo "$new_data" >"$temp_file"
+        fi
+    else
+        echo "$new_data" >"$temp_file"
+    fi
+
+    # Move temporary file to lock file
+    mv "$temp_file" "$lock_file"
+}
+
 # Function: process_files
 # Description: Process all files in the input directory
 #
@@ -266,6 +324,7 @@ process_files() {
     local skipped_count=0
     local failed_count=0
     local correct_count=0
+    local new_conversions="{}"
 
     if [ "$replace_mode" = true ]; then
         target_dir="$dir_path"
@@ -274,11 +333,35 @@ process_files() {
         mkdir -p "$target_dir"
     fi
 
+    # Get lock file path and read existing conversions
+    local lock_file
+    lock_file=$(get_lock_file_path "$([ "$replace_mode" = true ] && echo "$input_path" || echo "$output_path")")
+    local lock_data
+    lock_data=$(read_lock_file "$lock_file")
+
     # Process audio files with logging
     find "$dir_path" -maxdepth 1 -type f \( -iname "*.mp3" -o -iname "*.flac" -o -iname "*.wav" -o -iname "*.m4a" -o -iname "*.ogg" \
         -o -iname "*.opus" -o -iname "*.wma" -o -iname "*.aac" \) -print0 | while IFS= read -r -d '' file; do
-        local base_name="${file##*/}"
-        base_name="${base_name%.*}"
+
+        # Check if file is in lock file
+        if echo "$lock_data" | grep -q "\"$file\""; then
+            local file_format
+            local file_bitrate
+            if command -v jq &>/dev/null; then
+                file_format=$(echo "$lock_data" | jq -r ".[\"$file\"].format")
+                file_bitrate=$(echo "$lock_data" | jq -r ".[\"$file\"].bitrate")
+            else
+                file_format=$(echo "$lock_data" | grep -o "\"format\":\"[^\"]*\"" | cut -d'"' -f4)
+                file_bitrate=$(echo "$lock_data" | grep -o "\"bitrate\":\"[^\"]*\"" | cut -d'"' -f4)
+            fi
+
+            if [ "$file_format" = "$music_format" ] && [ "$file_bitrate" = "$bitrate" ]; then
+                echo "Skipping previously converted file (from lock): $file"
+                ((skipped_count++))
+                increment_count "${file##*.}"
+                continue
+            fi
+        fi
 
         # Check current format and bitrate
         audio_info=$(get_audio_info "$file")
@@ -293,10 +376,10 @@ process_files() {
         fi
 
         if [ "$replace_mode" = true ]; then
-            local output_file="$target_dir/${base_name}_temp.$music_format"
-            local final_file="$target_dir/${base_name}.$music_format"
+            local output_file="$target_dir/${file##*/}_temp.$music_format"
+            local final_file="$target_dir/${file##*/}.$music_format"
         else
-            local output_file="$target_dir/${base_name}.$music_format"
+            local output_file="$target_dir/${file##*/}.$music_format"
             if [ -f "$output_file" ]; then
                 echo "Skipping already converted file: $file"
                 ((skipped_count++))
@@ -318,7 +401,24 @@ process_files() {
             echo "Failed to convert: $file"
             ((failed_count++))
         fi
+
+        # After successful conversion, add to new_conversions
+        if [ $? -eq 0 ]; then
+            # Create JSON entry for the converted file
+            local timestamp
+            timestamp=$(date -Iseconds)
+            new_conversions=$(echo "$new_conversions" | jq --arg file "$file" \
+                --arg format "$music_format" \
+                --arg bitrate "$bitrate" \
+                --arg ts "$timestamp" \
+                '. + {($file): {"format": $format, "bitrate": $bitrate, "timestamp": $ts}}')
+        fi
     done
+
+    # Update lock file with new conversions if any were made
+    if [ "$new_conversions" != "{}" ]; then
+        update_lock_file "$lock_file" "$new_conversions"
+    fi
 
     # Process image and nfo files
     if [ "$replace_mode" = false ]; then
