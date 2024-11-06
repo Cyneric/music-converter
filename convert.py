@@ -282,7 +282,8 @@ def get_audio_info(file_path):
     try:
         # Handle Unicode paths by encoding properly
         encoded_path = os.fsdecode(file_path)
-        
+
+        # Add timeout to prevent hanging
         result = subprocess.run([
             'ffprobe',
             '-v', 'quiet',
@@ -290,7 +291,7 @@ def get_audio_info(file_path):
             '-show_format',
             '-show_streams',
             encoded_path
-        ], capture_output=True, text=True, encoding='utf-8')
+        ], capture_output=True, text=True, encoding='utf-8', timeout=10)  # Add 10 second timeout
 
         if result.returncode == 0 and result.stdout:
             try:
@@ -309,6 +310,9 @@ def get_audio_info(file_path):
             except json.JSONDecodeError as e:
                 logging.error(f"Failed to parse JSON for {file_path}: {str(e)}")
                 return None, None
+        return None, None
+    except subprocess.TimeoutExpired:
+        logging.error(f"Timeout while processing {file_path}")
         return None, None
     except Exception as e:
         logging.error(f"Error getting audio info for {file_path}: {str(e)}")
