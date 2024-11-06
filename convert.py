@@ -255,12 +255,13 @@ def setup_logging(input_path):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_file = os.path.join(log_dir, f'convert_{timestamp}.log')
 
+    # Configure logging with UTF-8 encoding
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
+            logging.FileHandler(log_file, encoding='utf-8'),  # Specify UTF-8 encoding for file
+            logging.StreamHandler(sys.stdout)  # Use stdout for console output
         ]
     )
 
