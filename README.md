@@ -224,22 +224,124 @@ Failed files:
 Log file: /path/to/script/logs/convert_20240726_123456.log
 ```
 
-## Examples
+## Usage Examples
 
-Converting a music library to MP3 320k:
+### Basic Usage
+
+Converting MP3 files to FLAC:
 ```bash
-python convert.py ~/Music ~/Music_MP3 mp3 320k
+# Using Python script
+python convert.py ~/Music/Albums ~/Converted/FLAC flac 320k
+
+# Using Bash script
+./convert.sh ~/Music/Albums ~/Converted/FLAC flac 320k
 ```
 
-Converting and replacing FLAC files with MP3:
+### Replace Mode Examples
+
+Converting all audio files to MP3 and replacing originals:
 ```bash
-./convert.sh ~/Music mp3 320k --replace
+# Using Python script
+python convert.py ~/Music/Collection mp3 320k --replace
+
+# Using Bash script
+./convert.sh ~/Music/Collection mp3 320k --replace
 ```
 
-Converting to high-quality FLAC:
+### Real-World Examples
+
+1. Converting a DJ music collection to lower bitrate for mobile device:
 ```bash
-python convert.py ~/Music ~/Music_FLAC flac 320k
+python convert.py ~/Music/DJ_Collection ~/Mobile_Music mp3 128k
 ```
+
+2. Converting podcast files to opus format for better compression:
+```bash
+./convert.sh ~/Podcasts ~/Podcasts_Compressed opus 64k
+```
+
+3. Converting vinyl rips to high-quality FLAC:
+```bash
+python convert.py ~/Vinyl_Rips ~/Archive flac 320k
+```
+
+4. Standardizing a mixed format collection to MP3:
+```bash
+./convert.sh ~/Mixed_Music mp3 320k --replace
+```
+
+### Directory Structure Example
+
+Input directory:
+```
+~/Music/
+├── Rock/
+│   ├── Artist1/
+│   │   ├── album.nfo
+│   │   ├── cover.jpg
+│   │   ├── track1.flac
+│   │   └── track2.flac
+│   └── Artist2/
+│       ├── album.nfo
+│       ├── cover.png
+│       └── track1.wav
+└── Jazz/
+    └── Artist3/
+        ├── album.nfo
+        ├── cover.jpg
+        └── track1.m4a
+```
+
+Converting to MP3:
+```bash
+python convert.py ~/Music ~/Converted mp3 320k
+```
+
+Output directory:
+```
+~/Converted/
+├── Rock/
+│   ├── Artist1/
+│   │   ├── album.nfo
+│   │   ├── cover.jpg
+│   │   ├── track1.mp3
+│   │   └── track2.mp3
+│   └── Artist2/
+│       ├── album.nfo
+│       ├── cover.png
+│       └── track1.mp3
+└── Jazz/
+    └── Artist3/
+        ├── album.nfo
+        ├── cover.jpg
+        └── track1.mp3
+```
+
+### Common Use Cases
+
+1. **Mobile Device Optimization**
+   ```bash
+   ./convert.sh ~/Music ~/Mobile mp3 128k
+   ```
+   Converts music to a mobile-friendly format and size
+
+2. **Backup with Format Standardization**
+   ```bash
+   python convert.py ~/Music ~/Backup mp3 320k
+   ```
+   Creates a backup while standardizing all audio to one format
+
+3. **Storage Space Optimization**
+   ```bash
+   ./convert.sh ~/Large_Audio_Collection opus 128k --replace
+   ```
+   Converts and replaces files with a space-efficient format
+
+4. **Archive Creation**
+   ```bash
+   python convert.py ~/Original_Records ~/Archive flac 320k
+   ```
+   Creates high-quality archives of original recordings
 
 ## Notes
 

@@ -1,29 +1,53 @@
 #!/bin/bash
 
 #
-# @file .convert.sh
-#
+# @file convert.sh
 # @created Fri Jul 26 2024
-# @Author Christian Blank <christianblank91@gmail.com>
+# @modified Wed Nov 06 2024
+# @author Christian Blank <christianblank91@gmail.com>
+# @copyright (c) 2024
 #
-# @Copyright (c) 2024
+# Audio Format Converter
+#
+# This script converts audio files to different formats while preserving metadata.
+# It also handles copying of associated image and NFO files.
+#
+# Features:
+# - Convert audio files to various formats (mp3, flac, wav, m4a, ogg, opus, wma, aac)
+# - Support for multiple bitrates (32k, 64k, 128k, 192k, 256k, 320k)
+# - Preserve metadata during conversion
+# - Handle image files (jpg, jpeg, png, gif, bmp, webp)
+# - Copy NFO files
+# - Two operation modes: copy to new directory or replace in place
+# - Detailed logging of all operations
+#
+# Usage Examples:
+# 1. Convert files to new directory:
+#    ./convert.sh ~/Music/Albums ~/Converted mp3 320k
+#    This will convert all audio files to 320k MP3 format and copy them to ~/Converted
+#
+# 2. Convert and replace original files:
+#    ./convert.sh ~/Music mp3 320k --replace
+#    This will convert all audio files to 320k MP3 format and replace the originals
+#
+# 3. Convert to different formats:
+#    ./convert.sh ~/Podcasts ~/Compressed opus 64k
+#    ./convert.sh ~/Vinyl_Rips ~/Archive flac 320k
+#    ./convert.sh ~/DJ_Music ~/Mobile mp3 128k
+#
 #
 
-# This script converts audio files to a specified format and bitrate using ffmpeg.
-# It also copies image files and nfo files to the output directory.
-# The script requires ffmpeg to be installed on the system.
-
-# The script takes three or four arguments:
-# 1. input_path: The path to the directory containing the audio files to convert.
-# 2. music_format: The format to convert the audio files to (mp3, flac, wav, m4a, ogg, opus, wma, aac).
-# 3. bitrate: The bitrate to use for the conversion (32k, 64k, 128k, 192k, 256k, 320k).
-# 4. Optional: --replace flag to replace original files instead of copying to output directory
+# Function: check_ffmpeg
+# Description: Check if ffmpeg is installed and offer to install it if missing.
+# Supports multiple package managers and installation methods across different OS.
 #
-# usage: ./convert.sh input_path music_format bitrate [--replace]
-# example: ./convert.sh ~/Music mp3 320k --replace
-# or: ./convert.sh input_path output_path music_format bitrate
-
-# check if ffmpeg is installed and install if missing
+# Installation methods:
+# - Linux: apt-get, dnf, pacman, zypper, or wget fallback
+# - macOS: Homebrew
+# - WSL: Native package managers
+#
+# Returns: None
+# Exits with status 1 if installation fails or is declined
 check_ffmpeg() {
     if ! command -v ffmpeg &>/dev/null; then
         read -p "ffmpeg is not installed. Would you like to install it now? (y/n): " choice
@@ -90,7 +114,17 @@ check_ffmpeg() {
     fi
 }
 
-# check if Python 3 is installed and install if missing
+# Function: check_python
+# Description: Check if Python 3 is installed and offer to install it if missing.
+# Supports multiple package managers and installation methods.
+#
+# Installation methods:
+# - Linux: apt-get, dnf, pacman, zypper
+# - macOS: Homebrew
+# - WSL: Native package managers
+#
+# Returns: None
+# Exits with status 1 if installation fails or is declined
 check_python() {
     if ! command -v python3 &>/dev/null; then
         read -p "Python 3 is not installed. Would you like to install it now? (y/n): " choice
@@ -127,59 +161,17 @@ check_python() {
     fi
 }
 
-# Call the check_ffmpeg function at the start
-check_ffmpeg
-
-# Call the check_python function at the start
-check_python
-
-# validate input arguments
-replace_mode=false
-if [ "$#" -eq 4 ] && [ "$4" = "--replace" ]; then
-    replace_mode=true
-    input_path="$1"
-    output_path="$input_path" # In replace mode, output is same as input
-    music_format="$2"
-    bitrate="$3"
-elif [ "$#" -eq 4 ] && [ "$4" != "--replace" ]; then
-    input_path="$1"
-    output_path="$2"
-    music_format="$3"
-    bitrate="$4"
-else
-    echo "Usage: $0 input_path music_format bitrate [--replace]"
-    echo "   or: $0 input_path output_path music_format bitrate"
-    exit 1
-fi
-
-# validate paths and parameters
-if [ ! -d "$input_path" ]; then
-    echo "The input path does not exist"
-    exit 1
-fi
-
-if [ "$replace_mode" = false ] && [ ! -d "$output_path" ] && ! mkdir -p "$output_path"; then
-    echo "Failed to create the output path"
-    exit 1
-fi
-
-if [[ ! "$music_format" =~ ^(mp3|flac|wav|m4a|ogg|opus|wma|aac)$ ]]; then
-    echo "The music format is not valid"
-    exit 1
-fi
-
-if [[ ! "$bitrate" =~ ^(32k|64k|128k|192k|256k|320k)$ ]]; then
-    echo "The bitrate is not valid"
-    exit 1
-fi
-
-declare -A file_count
-
-increment_count() {
-    local ext="$1"
-    ((file_count[$ext]++))
-}
-
+# Function: setup_logging
+# Description: Initialize logging with timestamp-based log file
+#
+# Global variables used:
+# - input_path: Source directory path
+# - output_path: Destination directory path
+# - music_format: Target audio format
+# - bitrate: Target bitrate
+# - replace_mode: Whether to replace original files
+#
+# Returns: Path to the created log file
 setup_logging() {
     # Create logs directory
     log_dir="$(dirname "$0")/logs"
@@ -203,6 +195,14 @@ setup_logging() {
     echo "$log_file"
 }
 
+# Function: get_audio_info
+# Description: Get audio format and bitrate information using ffprobe
+#
+# Arguments:
+#   $1 - Path to the audio file
+#
+# Returns: String in format "format:bitrate" or "error:error" if retrieval fails
+# Example return: "mp3:320k"
 get_audio_info() {
     local file="$1"
     local format_info
@@ -226,6 +226,39 @@ get_audio_info() {
     fi
 }
 
+# Function: increment_count
+# Description: Increment the count for a given file extension in the file_count array
+#
+# Arguments:
+#   $1 - File extension to increment count for
+#
+# Global variables modified:
+#   file_count - Associative array tracking file counts by extension
+increment_count() {
+    local ext="$1"
+    ((file_count[$ext]++))
+}
+
+# Function: process_files
+# Description: Process all files in the input directory
+#
+# Arguments:
+#   $1 - Directory path to process
+#
+# Global variables used:
+#   replace_mode - Whether to replace original files
+#   music_format - Target audio format
+#   bitrate - Target bitrate
+#   output_path - Destination directory path
+#   file_count - Associative array tracking file counts
+#
+# Operations:
+# - Converts audio files to specified format and bitrate
+# - Copies image and NFO files in non-replace mode
+# - Handles file replacement in replace mode
+# - Tracks conversion statistics
+#
+# Returns: String with counts in format "converted:skipped:failed:correct"
 process_files() {
     local dir_path="$1"
     local target_dir
@@ -305,20 +338,81 @@ process_files() {
     echo "$converted_count:$skipped_count:$failed_count:$correct_count"
 }
 
-# Add before the find command
+# Script execution starts here
+# Initialize required variables and perform dependency checks
+# Check dependencies
+check_ffmpeg
+check_python
+
+# Initialize tracking variables
+declare -A file_count
+converted_count=0
+skipped_count=0
+failed_count=0
+correct_count=0
+
+# Validate input arguments
+if [ "$#" -eq 4 ] && [ "$4" = "--replace" ]; then
+    replace_mode=true
+    input_path="$1"
+    output_path="$input_path" # In replace mode, output is same as input
+    music_format="$2"
+    bitrate="$3"
+elif [ "$#" -eq 4 ] && [ "$4" != "--replace" ]; then
+    replace_mode=false
+    input_path="$1"
+    output_path="$2"
+    music_format="$3"
+    bitrate="$4"
+else
+    echo "Usage: $0 input_path music_format bitrate [--replace]"
+    echo "   or: $0 input_path output_path music_format bitrate"
+    exit 1
+fi
+
+# Validate paths and parameters
+if [ ! -d "$input_path" ]; then
+    echo "The input path does not exist"
+    exit 1
+fi
+
+if [ "$replace_mode" = false ] && [ ! -d "$output_path" ]; then
+    mkdir -p "$output_path" || {
+        echo "Failed to create the output path"
+        exit 1
+    }
+fi
+
+# Validate format
+if [[ ! "$music_format" =~ ^(mp3|flac|wav|m4a|ogg|opus|wma|aac)$ ]]; then
+    echo "The music format is not valid"
+    exit 1
+fi
+
+# Validate bitrate
+if [[ ! "$bitrate" =~ ^(32k|64k|128k|192k|256k|320k)$ ]]; then
+    echo "The bitrate is not valid"
+    exit 1
+fi
+
+# Set up logging and process files
 log_file=$(setup_logging)
 
-# Add after the find command
-echo -e "\nConversion Summary:"
-echo "===================="
-echo "Total files processed: ${#file_count[@]}"
-echo "Successfully converted: $converted_count"
-echo "Skipped (already converted): $skipped_count"
-echo "Skipped (correct format/bitrate): $correct_count"
-echo "Failed conversions: $failed_count"
-echo -e "\nFile counts by extension:"
-for ext in "${!file_count[@]}"; do
-    echo "${ext}: ${file_count[$ext]} files"
-done
+# Process all directories recursively
+find "$input_path" -type d -exec bash -c 'process_files "$0"' {} \;
 
-echo -e "\nLog file: $log_file"
+# After all processing is done, print summary once
+{
+    echo -e "\nConversion Summary:"
+    echo "===================="
+    echo "Total files processed: ${#file_count[@]}"
+    echo "Successfully converted: $converted_count"
+    echo "Skipped (already converted): $skipped_count"
+    echo "Skipped (correct format/bitrate): $correct_count"
+    echo "Failed conversions: $failed_count"
+    echo -e "\nFile counts by extension:"
+    for ext in "${!file_count[@]}"; do
+        echo "${ext}: ${file_count[$ext]} files"
+    done
+    echo -e "\nLog file: $log_file"
+} | tee -a "$log_file"

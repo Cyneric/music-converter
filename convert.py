@@ -1,27 +1,25 @@
 #!/usr/bin/env python3
 
-#
-# @file .convert.py
-#
-# @created Fri Jul 26 2024
-# @Author Christian Blank <christianblank91@gmail.com>
-#
-# @Copyright (c) 2024
-#
+"""
+Author: Christian Blank <christianblank91@gmail.com>
+Created: Fri Jul 26 2024
+Modified: Wed Nov 06 2024
+Copyright: (c) 2024
 
-# This script converts audio files to different formats and stores them in a specified directory.
-# It also copies image files and .nfo files to the output directory.
-# The script requires ffmpeg to be installed on the system.
+Audio Format Converter
 
-# The script takes three or four arguments:
-# 1. The input path where the files are located
-# 2. The music format to convert the audio files to (mp3, flac, wav, m4a, ogg, opus, wma, aac)
-# 3. The bitrate to use for the conversion (32k, 64k, 128k, 192k, 256k, 320k)
-# 4. Optional: --replace flag to replace original files instead of copying to output directory
-#
-# usage: python convert.py /path/to/input mp3 320k [--replace]
-# example: python convert.py ~/Music mp3 320k --replace
-# or: python convert.py /path/to/input /path/to/output mp3 320k
+This script converts audio files to different formats while preserving metadata.
+It also handles copying of associated image and NFO files.
+
+Features:
+- Convert audio files to various formats (mp3, flac, wav, m4a, ogg, opus, wma, aac)
+- Support for multiple bitrates (32k, 64k, 128k, 192k, 256k, 320k)
+- Preserve metadata during conversion
+- Handle image files (jpg, jpeg, png, gif, bmp, webp)
+- Copy NFO files
+- Two operation modes: copy to new directory or replace in place
+- Detailed logging of all operations
+"""
 
 import os
 import subprocess
@@ -32,6 +30,13 @@ from datetime import datetime
 import json
 
 def check_python_version():
+    """
+    Check if the current Python version meets requirements (3.6 or higher).
+    Offers to install/upgrade Python if the version is insufficient.
+
+    Raises:
+        SystemExit: If Python version is insufficient and user declines installation
+    """
     if sys.version_info < (3, 6):
         print("Python 3.6 or higher is required.")
         choice = input("Would you like to install/upgrade Python now? (y/n): ")
@@ -70,6 +75,19 @@ def check_python_version():
             sys.exit(1)
 
 def check_ffmpeg():
+    """
+    Check if ffmpeg is installed and offer to install it if missing.
+    Supports multiple package managers and installation methods across different OS.
+
+    Installation methods:
+    - Linux: apt-get, dnf, pacman, zypper, or wget fallback
+    - macOS: Homebrew
+    - Windows: winget or manual installation
+    - WSL: Native package managers
+
+    Raises:
+        SystemExit: If ffmpeg installation fails or is declined
+    """
     if shutil.which("ffmpeg") is None:
         choice = input("ffmpeg is not installed. Would you like to install it now? (y/n): ")
         if choice.lower() == 'y':
@@ -93,21 +111,21 @@ def check_ffmpeg():
                             print("Installing wget first...")
                             subprocess.run(["sudo", "apt-get", "update"])
                             subprocess.run(["sudo", "apt-get", "install", "-y", "wget"])
-                        
+
                         # Create temporary directory
                         tmp_dir = "/tmp/ffmpeg_install"
                         os.makedirs(tmp_dir, exist_ok=True)
                         os.chdir(tmp_dir)
-                        
+
                         # Download and extract ffmpeg
                         subprocess.run(["wget", "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"])
                         subprocess.run(["tar", "xf", "ffmpeg-release-amd64-static.tar.xz"])
-                        
+
                         # Move ffmpeg to system path
                         ffmpeg_dir = next(d for d in os.listdir() if d.startswith('ffmpeg-'))
                         subprocess.run(["sudo", "cp", f"{ffmpeg_dir}/ffmpeg", "/usr/local/bin/"])
                         subprocess.run(["sudo", "cp", f"{ffmpeg_dir}/ffprobe", "/usr/local/bin/"])
-                        
+
                         # Cleanup
                         os.chdir("/")
                         shutil.rmtree(tmp_dir)
@@ -134,7 +152,7 @@ def check_ffmpeg():
                     except subprocess.CalledProcessError:
                         print("Failed to install ffmpeg using winget.")
                         print("Attempting manual installation instructions...")
-                
+
                 print("On Windows, you can:")
                 print("1. Install using winget (Windows Package Manager):")
                 print("   winget install Gyan.FFmpeg")
@@ -152,6 +170,15 @@ def check_ffmpeg():
             sys.exit(1)
 
 def validate_arguments():
+    """
+    Validate and parse command line arguments.
+
+    Returns:
+        tuple: (input_path, output_path, music_format, bitrate, replace_mode)
+
+    Raises:
+        SystemExit: If arguments are invalid or missing
+    """
     if len(sys.argv) not in [4, 5]:
         print("Usage: {} input_path music_format bitrate [--replace]".format(sys.argv[0]))
         print("   or: {} input_path output_path music_format bitrate".format(sys.argv[0]))
@@ -177,6 +204,18 @@ def validate_arguments():
     return input_path, output_path, music_format, bitrate, replace_mode
 
 def validate_paths_and_parameters(input_path, output_path, music_format, bitrate):
+    """
+    Validate input/output paths and conversion parameters.
+
+    Args:
+        input_path (str): Path to source files
+        output_path (str): Path for converted files
+        music_format (str): Target audio format
+        bitrate (str): Target bitrate
+
+    Raises:
+        SystemExit: If any validation fails
+    """
     if not os.path.isdir(input_path):
         print("The input path does not exist")
         sys.exit(1)
@@ -199,14 +238,23 @@ def validate_paths_and_parameters(input_path, output_path, music_format, bitrate
         sys.exit(1)
 
 def setup_logging(input_path):
+    """
+    Set up logging configuration with both file and console output.
+
+    Args:
+        input_path (str): Path to source files, used in initial log entry
+
+    Returns:
+        str: Path to the created log file
+    """
     # Create logs directory if it doesn't exist
     log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
     os.makedirs(log_dir, exist_ok=True)
-    
+
     # Setup logging with timestamp in filename
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_file = os.path.join(log_dir, f'convert_{timestamp}.log')
-    
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -215,36 +263,45 @@ def setup_logging(input_path):
             logging.StreamHandler()
         ]
     )
-    
+
     # Log initial information
     logging.info(f"Starting conversion process")
     logging.info(f"Input path: {input_path}")
     return log_file
 
 def get_audio_info(file_path):
+    """
+    Get audio format and bitrate information using ffprobe.
+
+    Args:
+        file_path (str): Path to the audio file
+
+    Returns:
+        tuple: (format_name, bitrate) or (None, None) if retrieval fails
+    """
     """Get audio format and bitrate using ffprobe"""
     try:
         result = subprocess.run([
-            'ffprobe', 
+            'ffprobe',
             '-v', 'quiet',
             '-print_format', 'json',
             '-show_format',
             '-show_streams',
             file_path
         ], capture_output=True, text=True)
-        
+
         if result.returncode == 0:
             info = json.loads(result.stdout)
             for stream in info.get('streams', []):
                 if stream.get('codec_type') == 'audio':
                     # Get format
                     format_name = info['format']['format_name'].split(',')[0]
-                    
+
                     # Get bitrate
                     bitrate = stream.get('bit_rate')
                     if bitrate:
                         bitrate = f"{int(int(bitrate)/1000)}k"
-                    
+
                     return format_name, bitrate
         return None, None
     except Exception as e:
@@ -252,6 +309,24 @@ def get_audio_info(file_path):
         return None, None
 
 def process_files(input_path, output_path, music_format, bitrate, replace_mode):
+    """
+    Process all files in the input directory, converting audio files and copying others as needed.
+
+    Args:
+        input_path (str): Source directory path
+        output_path (str): Destination directory path
+        music_format (str): Target audio format
+        bitrate (str): Target bitrate
+        replace_mode (bool): Whether to replace original files
+
+    Returns:
+        tuple: (file_count, converted_files, skipped_files, failed_files, correct_files)
+            - file_count: Dict mapping extensions to count of processed files
+            - converted_files: List of successfully converted files
+            - skipped_files: List of files skipped (already exist)
+            - failed_files: List of files that failed conversion
+            - correct_files: List of files already in target format/bitrate
+    """
     file_count = {}  # Dictionary to keep track of file counts
     converted_files = []  # List to store successfully converted files
     skipped_files = []   # List to store skipped files
@@ -278,7 +353,7 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
             if ext in {"mp3", "flac", "wav", "m4a", "ogg", "opus", "wma", "aac"}:
                 # Check current format and bitrate
                 current_format, current_bitrate = get_audio_info(file_path)
-                
+
                 # Skip if already in correct format and bitrate
                 if current_format == music_format and current_bitrate == bitrate:
                     logging.info(f"Skipping file already in correct format and bitrate: {file_path}")
@@ -301,7 +376,7 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
                         capture_output=True,
                         text=True
                     )
-                    
+
                     if result.returncode == 0:
                         if replace_mode:
                             os.remove(file_path)  # Remove original file
@@ -340,39 +415,49 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
     summary += f"Skipped (already converted): {len(skipped_files)}\n"
     summary += f"Skipped (correct format/bitrate): {len(correct_files)}\n"
     summary += f"Failed conversions: {len(failed_files)}\n\n"
-    
+
     summary += "File counts by extension:\n" + "-"*30 + "\n"
     for ext, count in file_count.items():
         summary += f"{ext}: {count} files\n"
-    
+
     if failed_files:
         summary += "\nFailed files:\n" + "-"*30 + "\n"
         for file in failed_files:
             summary += f"- {file}\n"
-    
+
     # Only log the summary, don't print it
     logging.info(summary)
 
     return file_count, converted_files, skipped_files, failed_files, correct_files
 
 def main():
+    """
+    Main function orchestrating the conversion process.
+
+    Process:
+    1. Check dependencies (Python version, ffmpeg)
+    2. Validate command line arguments
+    3. Set up logging
+    4. Process all files
+    5. Generate summary
+    """
     check_python_version()
     check_ffmpeg()
     input_path, output_path, music_format, bitrate, replace_mode = validate_arguments()
     validate_paths_and_parameters(input_path, output_path, music_format, bitrate)
-    
+
     # Setup logging
     log_file = setup_logging(input_path)
     logging.info(f"Output path: {output_path}")
     logging.info(f"Format: {music_format}")
     logging.info(f"Bitrate: {bitrate}")
     logging.info(f"Replace mode: {replace_mode}")
-    
+
     # Process files and get statistics
     file_count, converted_files, skipped_files, failed_files, correct_files = process_files(
         input_path, output_path, music_format, bitrate, replace_mode
     )
-    
+
     logging.info(f"Conversion completed. Log file: {log_file}")
 
 if __name__ == "__main__":
