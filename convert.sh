@@ -241,6 +241,7 @@ increment_count() {
 
 # Function: get_lock_file_path
 # Description: Get the path to the lock file for the given output directory
+#             Creates the lock file if it doesn't exist
 #
 # Arguments:
 #   $1 - Output directory path
@@ -248,7 +249,18 @@ increment_count() {
 # Returns: Path to lock file
 get_lock_file_path() {
     local output_dir="$1"
-    echo "$output_dir/.convert.lock"
+    local lock_file="$output_dir/.convert.lock"
+
+    # Create lock file if it doesn't exist
+    if [ ! -f "$lock_file" ]; then
+        echo "{}" >"$lock_file" 2>/dev/null || {
+            echo "Failed to create lock file: $lock_file"
+            return 1
+        }
+        echo "Created new lock file: $lock_file"
+    fi
+
+    echo "$lock_file"
 }
 
 # Function: read_lock_file

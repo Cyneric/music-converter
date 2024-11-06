@@ -32,47 +32,10 @@ import json
 def check_python_version():
     """
     Check if the current Python version meets requirements (3.6 or higher).
-    Offers to install/upgrade Python if the version is insufficient.
-
-    Raises:
-        SystemExit: If Python version is insufficient and user declines installation
     """
     if sys.version_info < (3, 6):
-        print("Python 3.6 or higher is required.")
-        choice = input("Would you like to install/upgrade Python now? (y/n): ")
-        if choice.lower() == 'y':
-            if sys.platform.startswith('linux') or "microsoft-standard" in os.uname().release.lower():
-                if shutil.which("apt-get"):
-                    subprocess.run(["sudo", "apt-get", "update"])
-                    subprocess.run(["sudo", "apt-get", "install", "-y", "python3", "python3-pip"])
-                elif shutil.which("dnf"):
-                    subprocess.run(["sudo", "dnf", "install", "-y", "python3", "python3-pip"])
-                elif shutil.which("pacman"):
-                    subprocess.run(["sudo", "pacman", "-S", "--noconfirm", "python", "python-pip"])
-                elif shutil.which("zypper"):
-                    subprocess.run(["sudo", "zypper", "install", "-y", "python3", "python3-pip"])
-            elif sys.platform == "darwin":
-                if shutil.which("brew"):
-                    subprocess.run(["brew", "install", "python"])
-                else:
-                    print("Please install Homebrew first:")
-                    print("  /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"")
-            elif sys.platform == "win32":
-                if shutil.which("winget"):
-                    try:
-                        print("Attempting to install Python using winget...")
-                        subprocess.run(["winget", "install", "Python.Python.3.11"], check=True)
-                        print("Please restart your terminal for the changes to take effect.")
-                        print("Then run this script again.")
-                    except subprocess.CalledProcessError:
-                        print("Failed to install Python using winget.")
-                        print("Please install Python manually from https://www.python.org/downloads/")
-                else:
-                    print("Please install Python manually from https://www.python.org/downloads/")
-            sys.exit(1)
-        else:
-            print("Python 3.6 or higher is required to run this script. Exiting.")
-            sys.exit(1)
+        print("Python 3.6 or higher is required to run this script. Exiting.")
+        sys.exit(1)
 
 def check_ffmpeg():
     """
@@ -322,22 +285,32 @@ def get_audio_info(file_path):
 def get_lock_file_path(output_path):
     """
     Get the path to the lock file for the given output directory.
-    
+    Creates the lock file if it doesn't exist.
+
     Args:
         output_path (str): Path to output directory
-        
+
     Returns:
         str: Path to lock file
     """
-    return os.path.join(output_path, '.convert.lock')
+    lock_file = os.path.join(output_path, '.convert.lock')
+    if not os.path.exists(lock_file):
+        try:
+            # Create empty lock file with initial empty JSON object
+            with open(lock_file, 'w', encoding='utf-8') as f:
+                json.dump({}, f, indent=2, ensure_ascii=False)
+            logging.info(f"Created new lock file: {lock_file}")
+        except Exception as e:
+            logging.error(f"Failed to create lock file: {str(e)}")
+    return lock_file
 
 def read_lock_file(lock_file):
     """
     Read the lock file containing information about converted files.
-    
+
     Args:
         lock_file (str): Path to lock file
-        
+
     Returns:
         dict: Dictionary with file paths as keys and conversion info as values
     """
@@ -352,7 +325,7 @@ def read_lock_file(lock_file):
 def update_lock_file(lock_file, converted_files_info):
     """
     Update the lock file with new conversion information.
-    
+
     Args:
         lock_file (str): Path to lock file
         converted_files_info (dict): Dictionary with conversion information to add
@@ -426,7 +399,7 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
 
                 # Check current format and bitrate
                 current_format, current_bitrate = get_audio_info(file_path)
-                
+
                 if current_format == music_format and current_bitrate == bitrate:
                     logging.info(f"Skipping file already in correct format and bitrate: {file_path}")
                     correct_files.append(file_path)
@@ -457,7 +430,7 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
                             logging.info(f"Successfully converted and replaced: {file_path}")
                         else:
                             logging.info(f"Successfully converted: {file_path} -> {output_file}")
-                        
+
                         # Add to lock file info
                         new_conversions[file_path] = {
                             'format': music_format,
@@ -498,16 +471,16 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
     summary += f"Skipped (already converted): {len(skipped_files)}\n"
     summary += f"Skipped (correct format/bitrate): {len(correct_files)}\n"
     summary += f"Failed conversions: {len(failed_files)}\n\n"
-    
+
     summary += "File counts by extension:\n" + "-"*30 + "\n"
     for ext, count in file_count.items():
         summary += f"{ext}: {count} files\n"
-    
+
     if failed_files:
         summary += "\nFailed files:\n" + "-"*30 + "\n"
         for file in failed_files:
             summary += f"- {file}\n"
-    
+
     logging.info(summary)
 
     return file_count, converted_files, skipped_files, failed_files, correct_files
