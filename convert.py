@@ -279,30 +279,36 @@ def get_audio_info(file_path):
     Returns:
         tuple: (format_name, bitrate) or (None, None) if retrieval fails
     """
-    """Get audio format and bitrate using ffprobe"""
     try:
+        # Handle Unicode paths by encoding properly
+        encoded_path = os.fsdecode(file_path)
+        
         result = subprocess.run([
             'ffprobe',
             '-v', 'quiet',
             '-print_format', 'json',
             '-show_format',
             '-show_streams',
-            file_path
-        ], capture_output=True, text=True)
+            encoded_path
+        ], capture_output=True, text=True, encoding='utf-8')
 
-        if result.returncode == 0:
-            info = json.loads(result.stdout)
-            for stream in info.get('streams', []):
-                if stream.get('codec_type') == 'audio':
-                    # Get format
-                    format_name = info['format']['format_name'].split(',')[0]
+        if result.returncode == 0 and result.stdout:
+            try:
+                info = json.loads(result.stdout)
+                for stream in info.get('streams', []):
+                    if stream.get('codec_type') == 'audio':
+                        # Get format
+                        format_name = info['format']['format_name'].split(',')[0]
 
-                    # Get bitrate
-                    bitrate = stream.get('bit_rate')
-                    if bitrate:
-                        bitrate = f"{int(int(bitrate)/1000)}k"
+                        # Get bitrate
+                        bitrate = stream.get('bit_rate')
+                        if bitrate:
+                            bitrate = f"{int(int(bitrate)/1000)}k"
 
-                    return format_name, bitrate
+                        return format_name, bitrate
+            except json.JSONDecodeError as e:
+                logging.error(f"Failed to parse JSON for {file_path}: {str(e)}")
+                return None, None
         return None, None
     except Exception as e:
         logging.error(f"Error getting audio info for {file_path}: {str(e)}")
