@@ -133,8 +133,31 @@ Available bitrates for audio conversion:
 
 ## Usage
 
-### Python Script
+The scripts can be run in two ways:
+1. Command-line mode with arguments
+2. Interactive mode (when run without arguments)
 
+### Interactive Mode
+
+Simply run the script without arguments:
+```bash
+# Python script
+python convert.py
+
+# Bash script
+./convert.sh
+```
+
+The script will guide you through the process, asking for:
+1. Input directory path
+2. Operation mode (copy/replace)
+3. Output directory path (if copy mode)
+4. Output format
+5. Bitrate
+
+### Command-line Mode
+
+#### Python Script
 ```bash
 # Copy mode (output to new directory):
 python convert.py /path/to/input /path/to/output format bitrate
@@ -147,8 +170,7 @@ python convert.py /path/to/input format bitrate --replace
 python convert.py ~/Music mp3 320k --replace
 ```
 
-### Bash Script
-
+#### Bash Script
 ```bash
 # Copy mode (output to new directory):
 ./convert.sh /path/to/input /path/to/output format bitrate
@@ -160,6 +182,43 @@ python convert.py ~/Music mp3 320k --replace
 # Example:
 ./convert.sh ~/Music mp3 320k --replace
 ```
+
+## Console Output
+
+The scripts use color-coded output for better readability:
+
+- 🟣 Purple: Section headers and titles
+- 🔵 Blue: Information and skipped files
+- 🟢 Green: Successful operations
+- 🟡 Yellow: Warnings
+- 🔴 Red: Errors and failures
+- Bold: Numbers and important information
+
+Example colored output:
+```
+🟣 Conversion Summary:
+==================================================
+Total files processed: Bold42
+🟢 Successfully converted: 35
+🔵 Skipped (already converted): 5
+🔴 Failed conversions: 2
+
+🟣 File counts by extension:
+------------------------------
+mp3: Bold20 files
+flac: Bold15 files
+jpg: Bold5 files
+nfo: Bold2 files
+
+🔴 Failed files:
+------------------------------
+- /path/to/failed/file1.mp3
+- /path/to/failed/file2.flac
+
+🔵 Log file: /path/to/script/logs/convert_20240726_123456.log
+```
+
+Note: Colors are only shown in the console output. Log files contain plain text without color codes.
 
 ## Operation Modes
 

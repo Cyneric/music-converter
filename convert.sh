@@ -37,6 +37,22 @@
 #
 #
 
+# ANSI color codes
+COLOR_HEADER='\033[95m'
+COLOR_INFO='\033[94m'
+COLOR_SUCCESS='\033[92m'
+COLOR_WARNING='\033[93m'
+COLOR_ERROR='\033[91m'
+COLOR_RESET='\033[0m'
+COLOR_BOLD='\033[1m'
+
+# Function to colorize output
+colorize() {
+    local color="$1"
+    local text="$2"
+    echo -e "${color}${text}${COLOR_RESET}"
+}
+
 # Function: check_ffmpeg
 # Description: Check if ffmpeg is installed and offer to install it if missing.
 # Supports multiple package managers and installation methods across different OS.
@@ -363,7 +379,7 @@ process_files() {
             fi
 
             if [ "$file_format" = "$music_format" ] && [ "$file_bitrate" = "$bitrate" ]; then
-                echo "Skipping previously processed file (from lock): $file"
+                colorize "$COLOR_INFO" "Skipping previously processed file (from lock): $file"
                 ((skipped_count++))
                 increment_count "${file##*.}"
                 continue
@@ -376,7 +392,7 @@ process_files() {
         current_bitrate="${audio_info#*:}"
 
         if [ "$current_format" = "$music_format" ] && [ "$current_bitrate" = "$bitrate" ]; then
-            echo "Skipping file already in correct format and bitrate: $file"
+            colorize "$COLOR_INFO" "Skipping file already in correct format and bitrate: $file"
             # Add to lock file
             local timestamp
             timestamp=$(date -Iseconds)
@@ -388,6 +404,10 @@ process_files() {
                 '. + {($file): {"format": $format, "bitrate": $bitrate, "timestamp": $ts, "status": $status}}')
             ((correct_count++))
             increment_count "${file##*.}"
+
+            # Update lock file immediately for this file
+            update_lock_file "$lock_file" "$new_conversions"
+            new_conversions="{}" # Reset new_conversions after update
             continue
         fi
 
@@ -397,7 +417,7 @@ process_files() {
         else
             local output_file="$target_dir/${file##*/}.$music_format"
             if [ -f "$output_file" ]; then
-                echo "Skipping already converted file: $file"
+                colorize "$COLOR_INFO" "Skipping already converted file: $file"
                 ((skipped_count++))
                 continue
             fi
@@ -407,14 +427,14 @@ process_files() {
             if [ "$replace_mode" = true ]; then
                 rm "$file"
                 mv "$output_file" "$final_file"
-                echo "Successfully converted and replaced: $file"
+                colorize "$COLOR_SUCCESS" "Successfully converted and replaced: $file"
             else
-                echo "Successfully converted: $file -> $output_file"
+                colorize "$COLOR_SUCCESS" "Successfully converted: $file -> $output_file"
             fi
             ((converted_count++))
             increment_count "${file##*.}"
         else
-            echo "Failed to convert: $file"
+            colorize "$COLOR_ERROR" "Failed to convert: $file"
             ((failed_count++))
         fi
 
@@ -454,6 +474,72 @@ process_files() {
     echo "$converted_count:$skipped_count:$failed_count:$correct_count"
 }
 
+# Function: get_user_input
+# Description: Interactively collect parameters from user when not provided via command line
+#
+# Returns: Sets global variables for input_path, output_path, music_format, bitrate, and replace_mode
+get_user_input() {
+    echo -e "\n${COLOR_HEADER}Audio Format Converter - Interactive Mode${COLOR_RESET}"
+
+    # Get input path
+    while true; do
+        echo -en "${COLOR_INFO}Enter input directory path: ${COLOR_RESET}"
+        read -r input_path
+        if [ -d "$input_path" ]; then
+            break
+        fi
+        echo -e "${COLOR_ERROR}Invalid directory path. Please try again.${COLOR_RESET}"
+    done
+
+    # Get operation mode
+    while true; do
+        echo -e "${COLOR_INFO}Choose operation mode:"
+        echo "1. Copy to new directory"
+        echo -e "2. Replace original files${COLOR_RESET}"
+        echo -n "Enter (1/2): "
+        read -r mode
+        if [ "$mode" = "1" ] || [ "$mode" = "2" ]; then
+            replace_mode=$([ "$mode" = "2" ] && echo "true" || echo "false")
+            break
+        fi
+        echo -e "${COLOR_ERROR}Invalid choice. Please enter 1 or 2.${COLOR_RESET}"
+    done
+
+    # Get output path if not in replace mode
+    if [ "$replace_mode" = "false" ]; then
+        while true; do
+            echo -en "${COLOR_INFO}Enter output directory path: ${COLOR_RESET}"
+            read -r output_path
+            if mkdir -p "$output_path" 2>/dev/null; then
+                break
+            fi
+            echo -e "${COLOR_ERROR}Cannot create directory. Please try again.${COLOR_RESET}"
+        done
+    else
+        output_path="$input_path"
+    fi
+
+    # Get format
+    while true; do
+        echo -en "${COLOR_INFO}Enter output format (mp3, flac, wav, m4a, ogg, opus, wma, aac): ${COLOR_RESET}"
+        read -r music_format
+        if [[ "$music_format" =~ ^(mp3|flac|wav|m4a|ogg|opus|wma|aac)$ ]]; then
+            break
+        fi
+        echo -e "${COLOR_ERROR}Invalid format. Please choose from the list above.${COLOR_RESET}"
+    done
+
+    # Get bitrate
+    while true; do
+        echo -en "${COLOR_INFO}Enter bitrate (32k, 64k, 128k, 192k, 256k, 320k): ${COLOR_RESET}"
+        read -r bitrate
+        if [[ "$bitrate" =~ ^(32k|64k|128k|192k|256k|320k)$ ]]; then
+            break
+        fi
+        echo -e "${COLOR_ERROR}Invalid bitrate. Please choose from the list above.${COLOR_RESET}"
+    done
+}
+
 # Script execution starts here
 # Initialize required variables and perform dependency checks
 # Check dependencies
@@ -468,13 +554,16 @@ failed_count=0
 correct_count=0
 
 # Validate input arguments
-if [ "$#" -eq 4 ] && [ "$4" = "--replace" ]; then
+if [ $# -eq 0 ]; then
+    # No arguments provided, get them interactively
+    get_user_input
+elif [ $# -eq 4 ] && [ "$4" = "--replace" ]; then
     replace_mode=true
     input_path="$1"
-    output_path="$input_path" # In replace mode, output is same as input
+    output_path="$input_path"
     music_format="$2"
     bitrate="$3"
-elif [ "$#" -eq 4 ] && [ "$4" != "--replace" ]; then
+elif [ $# -eq 4 ] && [ "$4" != "--replace" ]; then
     replace_mode=false
     input_path="$1"
     output_path="$2"
@@ -483,7 +572,7 @@ elif [ "$#" -eq 4 ] && [ "$4" != "--replace" ]; then
 else
     echo "Usage: $0 input_path music_format bitrate [--replace]"
     echo "   or: $0 input_path output_path music_format bitrate"
-    exit 1
+    get_user_input
 fi
 
 # Validate paths and parameters
@@ -519,16 +608,19 @@ find "$input_path" -type d -exec bash -c 'process_files "$0"' {} \;
 
 # After all processing is done, print summary once
 {
-    echo -e "\nConversion Summary:"
+    echo -e "\n${COLOR_HEADER}Conversion Summary:${COLOR_RESET}"
     echo "===================="
-    echo "Total files processed: ${#file_count[@]}"
-    echo "Successfully converted: $converted_count"
-    echo "Skipped (already converted): $skipped_count"
-    echo "Skipped (correct format/bitrate): $correct_count"
-    echo "Failed conversions: $failed_count"
-    echo -e "\nFile counts by extension:"
+    echo -e "Total files processed: ${COLOR_BOLD}${#file_count[@]}${COLOR_RESET}"
+    echo -e "Successfully converted: ${COLOR_SUCCESS}${converted_count}${COLOR_RESET}"
+    echo -e "Skipped (already converted): ${COLOR_INFO}${skipped_count}${COLOR_RESET}"
+    echo -e "Skipped (correct format/bitrate): ${COLOR_INFO}${correct_count}${COLOR_RESET}"
+    echo -e "Failed conversions: ${COLOR_ERROR}${failed_count}${COLOR_RESET}"
+
+    echo -e "\n${COLOR_HEADER}File counts by extension:${COLOR_RESET}"
+    echo "------------------------------"
     for ext in "${!file_count[@]}"; do
-        echo "${ext}: ${file_count[$ext]} files"
+        echo -e "${ext}: ${COLOR_BOLD}${file_count[$ext]}${COLOR_RESET} files"
     done
-    echo -e "\nLog file: $log_file"
+
+    echo -e "\n${COLOR_INFO}Log file: $log_file${COLOR_RESET}"
 } | tee -a "$log_file"

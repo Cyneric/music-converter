@@ -29,6 +29,16 @@ import logging
 from datetime import datetime
 import json
 
+class Colors:
+    """ANSI color codes for console output"""
+    HEADER = '\033[95m'
+    INFO = '\033[94m'
+    SUCCESS = '\033[92m'
+    WARNING = '\033[93m'
+    ERROR = '\033[91m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+
 def check_python_version():
     """
     Check if the current Python version meets requirements (3.6 or higher).
@@ -132,33 +142,83 @@ def check_ffmpeg():
             print("ffmpeg is required to run this script. Exiting.")
             sys.exit(1)
 
-def validate_arguments():
+def get_user_input():
     """
-    Validate and parse command line arguments.
-
+    Interactively collect parameters from user when not provided via command line.
+    
     Returns:
         tuple: (input_path, output_path, music_format, bitrate, replace_mode)
-
-    Raises:
-        SystemExit: If arguments are invalid or missing
     """
+    print(f"\n{Colors.HEADER}Audio Format Converter - Interactive Mode{Colors.RESET}")
+    
+    # Get input path
+    while True:
+        input_path = input(f"{Colors.INFO}Enter input directory path: {Colors.RESET}").strip()
+        if os.path.isdir(input_path):
+            break
+        print(f"{Colors.ERROR}Invalid directory path. Please try again.{Colors.RESET}")
+
+    # Get operation mode
+    while True:
+        mode = input(f"{Colors.INFO}Choose operation mode:\n1. Copy to new directory\n2. Replace original files\nEnter (1/2): {Colors.RESET}").strip()
+        if mode in ['1', '2']:
+            replace_mode = (mode == '2')
+            break
+        print(f"{Colors.ERROR}Invalid choice. Please enter 1 or 2.{Colors.RESET}")
+
+    # Get output path if not in replace mode
+    output_path = input_path if replace_mode else ""
+    if not replace_mode:
+        while True:
+            output_path = input(f"{Colors.INFO}Enter output directory path: {Colors.RESET}").strip()
+            try:
+                os.makedirs(output_path, exist_ok=True)
+                break
+            except:
+                print(f"{Colors.ERROR}Cannot create directory. Please try again.{Colors.RESET}")
+
+    # Get format
+    valid_formats = {"mp3", "flac", "wav", "m4a", "ogg", "opus", "wma", "aac"}
+    while True:
+        music_format = input(f"{Colors.INFO}Enter output format {valid_formats}: {Colors.RESET}").strip().lower()
+        if music_format in valid_formats:
+            break
+        print(f"{Colors.ERROR}Invalid format. Please choose from {valid_formats}{Colors.RESET}")
+
+    # Get bitrate
+    valid_bitrates = {"32k", "64k", "128k", "192k", "256k", "320k"}
+    while True:
+        bitrate = input(f"{Colors.INFO}Enter bitrate {valid_bitrates}: {Colors.RESET}").strip().lower()
+        if bitrate in valid_bitrates:
+            break
+        print(f"{Colors.ERROR}Invalid bitrate. Please choose from {valid_bitrates}{Colors.RESET}")
+
+    return input_path, output_path, music_format, bitrate, replace_mode
+
+def validate_arguments():
+    """Validate and parse command line arguments or get them interactively."""
+    if len(sys.argv) == 1:
+        # No arguments provided, get them interactively
+        return get_user_input()
+    
+    # Original argument validation logic
     if len(sys.argv) not in [4, 5]:
         print("Usage: {} input_path music_format bitrate [--replace]".format(sys.argv[0]))
         print("   or: {} input_path output_path music_format bitrate".format(sys.argv[0]))
-        sys.exit(1)
+        return get_user_input()
 
     replace_mode = "--replace" in sys.argv
     if replace_mode:
         sys.argv.remove("--replace")
         input_path = sys.argv[1]
-        output_path = input_path  # In replace mode, output is same as input
+        output_path = input_path
         music_format = sys.argv[2]
         bitrate = sys.argv[3]
     else:
         if len(sys.argv) != 5:
             print("Usage: {} input_path music_format bitrate [--replace]".format(sys.argv[0]))
             print("   or: {} input_path output_path music_format bitrate".format(sys.argv[0]))
-            sys.exit(1)
+            return get_user_input()
         input_path = sys.argv[1]
         output_path = sys.argv[2]
         music_format = sys.argv[3]
@@ -218,18 +278,45 @@ def setup_logging(input_path):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_file = os.path.join(log_dir, f'convert_{timestamp}.log')
 
+    class ColoredFormatter(logging.Formatter):
+        """Custom formatter adding colors to levelnames"""
+        def format(self, record):
+            # Add colors based on log level
+            if record.levelno == logging.INFO:
+                record.levelname = f"{Colors.INFO}{record.levelname}{Colors.RESET}"
+            elif record.levelno == logging.ERROR:
+                record.levelname = f"{Colors.ERROR}{record.levelname}{Colors.RESET}"
+            elif record.levelno == logging.WARNING:
+                record.levelname = f"{Colors.WARNING}{record.levelname}{Colors.RESET}"
+            
+            # Add colors to specific message patterns
+            msg = record.getMessage()
+            if "Successfully" in msg:
+                record.msg = f"{Colors.SUCCESS}{msg}{Colors.RESET}"
+            elif "Skipping" in msg:
+                record.msg = f"{Colors.INFO}{msg}{Colors.RESET}"
+            elif "Failed" in msg or "Error" in msg:
+                record.msg = f"{Colors.ERROR}{msg}{Colors.RESET}"
+            
+            return super().format(record)
+
     # Configure logging with UTF-8 encoding
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'),  # Specify UTF-8 encoding for file
-            logging.StreamHandler(sys.stdout)  # Use stdout for console output
+            logging.FileHandler(log_file, encoding='utf-8'),  # File handler without colors
+            logging.StreamHandler(sys.stdout)  # Console handler with colors
         ]
     )
 
+    # Apply colored formatter only to console handler
+    for handler in logging.getLogger().handlers:
+        if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
+            handler.setFormatter(ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s'))
+
     # Log initial information
-    logging.info(f"Starting conversion process")
+    logging.info(f"{Colors.HEADER}Starting conversion process{Colors.RESET}")
     logging.info(f"Input path: {input_path}")
     return log_file
 
@@ -398,13 +485,16 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
                 
                 if current_format == music_format and current_bitrate == bitrate:
                     logging.info(f"Skipping file already in correct format and bitrate: {file_path}")
-                    # Add to lock file info
-                    new_conversions[file_path] = {
-                        'format': music_format,
-                        'bitrate': bitrate,
-                        'timestamp': datetime.now().isoformat(),
-                        'status': 'correct_format'
+                    # Add to lock file info immediately
+                    current_conversion = {
+                        file_path: {
+                            'format': music_format,
+                            'bitrate': bitrate,
+                            'timestamp': datetime.now().isoformat(),
+                            'status': 'correct_format'
+                        }
                     }
+                    update_lock_file(lock_file, current_conversion)
                     correct_files.append(file_path)
                     increment_count(ext)
                     continue
@@ -468,20 +558,20 @@ def process_files(input_path, output_path, music_format, bitrate, replace_mode):
     if new_conversions:
         update_lock_file(lock_file, new_conversions)
 
-    # Print and log summary
-    summary = "\nConversion Summary:\n" + "="*50 + "\n"
-    summary += f"Total files processed: {sum(file_count.values())}\n"
-    summary += f"Successfully converted: {len(converted_files)}\n"
-    summary += f"Skipped (already converted): {len(skipped_files)}\n"
-    summary += f"Skipped (correct format/bitrate): {len(correct_files)}\n"
-    summary += f"Failed conversions: {len(failed_files)}\n\n"
+    # Print and log summary with colors
+    summary = f"\n{Colors.HEADER}Conversion Summary:{Colors.RESET}\n" + "="*50 + "\n"
+    summary += f"Total files processed: {Colors.BOLD}{sum(file_count.values())}{Colors.RESET}\n"
+    summary += f"Successfully converted: {Colors.SUCCESS}{len(converted_files)}{Colors.RESET}\n"
+    summary += f"Skipped (already converted): {Colors.INFO}{len(skipped_files)}{Colors.RESET}\n"
+    summary += f"Skipped (correct format/bitrate): {Colors.INFO}{len(correct_files)}{Colors.RESET}\n"
+    summary += f"Failed conversions: {Colors.ERROR}{len(failed_files)}{Colors.RESET}\n\n"
 
-    summary += "File counts by extension:\n" + "-"*30 + "\n"
+    summary += f"{Colors.HEADER}File counts by extension:{Colors.RESET}\n" + "-"*30 + "\n"
     for ext, count in file_count.items():
-        summary += f"{ext}: {count} files\n"
+        summary += f"{ext}: {Colors.BOLD}{count}{Colors.RESET} files\n"
 
     if failed_files:
-        summary += "\nFailed files:\n" + "-"*30 + "\n"
+        summary += f"\n{Colors.ERROR}Failed files:{Colors.RESET}\n" + "-"*30 + "\n"
         for file in failed_files:
             summary += f"- {file}\n"
 
