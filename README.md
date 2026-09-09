@@ -386,15 +386,32 @@ silently discarding history.
 ### Upgrading JSON History
 
 The old `.convert.lock` remains untouched. Both published scripts stored it
-beside the script, despite earlier documentation saying otherwise. Its entries
-lack enough information to verify an output, so files without new records are
-rechecked. The first run can take longer. Correct in-place audio is verified
-without re-encoding, and missing copy outputs are created. Existing copy outputs
-without verified records are reported as conflicts.
+beside the script, despite earlier documentation saying otherwise. In replace
+mode, matching entries are imported automatically without probing, decoding, or
+re-encoding the audio. The converter still scans the directory to find files.
 
-Checks are recorded as they complete. If the run is interrupted, the next run
-uses the records already saved. Damaged legacy JSON is left untouched and
-reported in the log; it does not prevent checking the audio files directly.
+An imported entry must identify the current file by its absolute path, match the
+requested format and bitrate, and have a valid completion timestamp. The file
+must be nonempty, be a regular file rather than a symbolic link, and have a
+modification time no later than that timestamp. Renamed files and ambiguous
+records are not guessed. Entries that cannot be imported receive normal checks.
+Existing SQLite replacement records always take precedence, even after a file or
+its conversion settings change.
+
+This migration trusts the old script's completed records and establishes size
+and modification-time fingerprints for future runs. Old records cannot prove
+that audio remained unchanged before migration. Imported files count as skipped;
+the log reports how many legacy records were reused.
+
+Imports are committed in batches of up to 250, including a final batch at each
+phase boundary or orderly interruption. A forced stop can leave the last batch
+to be imported again. Completed conversions and copies are still saved
+immediately. The next run uses the records already saved.
+
+Copy mode still creates missing outputs and reports conflicts for existing
+outputs without verified records: legacy entries do not record the destination
+directory. Damaged legacy JSON is left untouched and reported in the log; it does
+not prevent checking the audio files directly.
 
 Example of the old JSON format, retained for reference:
 

@@ -47,8 +47,8 @@ renamed or removed automatically. Check for both names before converting again,
 especially in replace mode, which can overwrite an existing `track.mp3`.
 
 The launcher uses the `.convert-state.sqlite3` beside `convert.py`. The old
-`.convert.lock` is left untouched. Files without new verified records are checked
-again, including files mentioned in old Bash history.
+`.convert.lock` is left untouched. Eligible in-place records from either old
+script are imported automatically. Other files receive normal checks.
 
 If a suitable Python, `convert.py`, or the package is missing, startup exits with code `1` and prints
 an error to stderr, even with `--headless`. Once Python starts, its documented
@@ -110,16 +110,36 @@ New records are stored in `.convert-state.sqlite3` beside `convert.py`. The old
 `.convert.lock` remains untouched for reference and rollback. Both old scripts
 already stored it beside the script, despite earlier README instructions.
 
-Legacy entries do not identify or verify the destination. Files without verified
-SQLite records are checked once. The first run can take longer. Correct in-place
-audio is validated without re-encoding; missing copy outputs are created.
-Unverifiable existing copy outputs are kept and reported as conflicts. Choose a
-new output directory or review the conflicting files before retrying.
+Matching in-place entries are imported automatically without ffprobe, audio
+decoding, or re-encoding. No new option is needed. The directory scan still runs
+to discover files, but eligible entries need only filesystem metadata checks.
 
-Progress is saved in transactions after each successful operation, so migration
-resumes after interruption. Damaged legacy JSON is logged and left untouched while
-files are checked directly. An unreadable, unsupported, or unwritable SQLite
-database stops the run instead of discarding history.
+An entry must use an absolute path identifying the current file, match its
+extension and the requested format and bitrate, and contain a valid completion
+timestamp. Status may be `converted`, `correct_format`, or absent for older Bash
+records. The file must be nonempty and regular, without a symbolic link, and its
+modification time must not be later than the recorded completion. Timezone-free
+timestamps from older Python versions are interpreted in the local timezone.
+Missing or ambiguous information falls back to normal validation. Paths are not
+remapped to guess moved libraries or older Bash output names.
+
+Fast migration preserves the old script's trust in its history. It cannot prove
+that a file remained unchanged before its first SQLite fingerprint was recorded.
+Once a destination has a SQLite replacement record, legacy history can never be
+used to bypass checks for later file or settings changes.
+
+Imported files count as skipped, and the log reports the number imported.
+Imports are saved in transactions of up to 250 records, with remaining records
+saved at phase boundaries and orderly cancellation. After a forced stop, only
+an uncommitted batch needs importing again. Newly completed conversions and
+copies are still recorded immediately.
+
+Legacy entries do not identify a copy destination, so missing copy outputs are
+created and unverifiable existing outputs remain conflicts. Choose a new output
+directory or review the conflicting files before retrying. Damaged legacy JSON
+is logged and left untouched while files are checked directly. An unreadable,
+unsupported, or unwritable SQLite database stops the run instead of discarding
+history.
 
 Records contain the operation mode, paths, format, bitrate, file size, and
 modification time in nanoseconds. Copy mode checks both source and destination;

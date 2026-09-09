@@ -43,8 +43,12 @@ Read [UPGRADING.md](UPGRADING.md) for behavior changes affecting existing users.
 - Copy already-correct audio without re-encoding instead of leaving it out.
 - Keep unverifiable existing audio and sidecar outputs and report conflicts.
   POSIX copy mode uses hard links to avoid overwriting files.
-- Recheck old JSON history without modifying `.convert.lock`. New progress is
-  saved in `.convert-state.sqlite3`; old scripts do not read this database.
+- Automatically import eligible in-place records from `.convert.lock` using
+  metadata checks, without probing or decoding audio. Keep the old file untouched.
+  Import in batches of up to 250 and resume after interruption. Existing SQLite
+  records take precedence; changed or ambiguous legacy entries receive normal checks.
+- Save new progress in `.convert-state.sqlite3`; old scripts do not read this
+  database. Legacy history cannot verify existing copy destinations.
 - Replace mode retries remaining sources with other extensions, even with an old resume entry.
 - Added audio-only retries for artwork failures and forced MP3 decoding as a fallback
   after automatic content detection fails. Audio-only success can omit embedded art.
@@ -60,3 +64,4 @@ Read [UPGRADING.md](UPGRADING.md) for behavior changes affecting existing users.
 - Corrected the lock file location. Python must be installed before running the script.
 - Documented the Python 3.11 minimum, package layout, SQLite migration, and rollback.
 - Explained when copy mode skips files and when embedded artwork may be omitted.
+- Explain the legacy import requirements and the limits of trusting old records.

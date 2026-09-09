@@ -173,6 +173,11 @@ class _Workflow:
                 raise FileExistsError(f'Conflict: existing output cannot be verified: {destination}')
             if os.path.islink(destination):
                 raise OSError(f'Refusing to replace a symbolic link: {destination}')
+            with files.defer_interrupt():
+                if self.history.import_legacy(source, destination, self.mode, *settings):
+                    self.reserved.add(key)
+                    self.record('skipped', source, extension)
+                    return
             fingerprint = Fingerprint.read(source)
             correct = False
             if not sidecar and extension == self.config.music_format:
@@ -235,6 +240,8 @@ class _Workflow:
                     self.consider(source, extension, phase, pool)
                 while self.pending and not self.stop.is_set():
                     self.collect(block=True)
+                with files.defer_interrupt():
+                    self.history.flush_imports()
                 self.emit(ProgressEvent('phase_finished'))
                 phase_open = False
         except KeyboardInterrupt:
@@ -255,6 +262,8 @@ class _Workflow:
                     for future, job in list(self.pending.items()):
                         if not fatal:
                             self.finish(future, job)
+                    if not fatal:
+                        self.history.flush_imports()
                 finally:
                     for job in self.pending.values():
                         self.clean(job.temporary)
