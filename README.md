@@ -2,6 +2,22 @@
 
 This repository contains two scripts (Python and Bash) for converting audio files to different formats while preserving metadata. The scripts also handle copying of associated image and NFO files.
 
+## Upgrading
+
+This update changes the Python script since
+[`2066898` revision](https://github.com/Cyneric/music-converter/tree/206689849685d773cc6ea83973a4f596a7928519).
+The original copy and replace command forms still work, and conversion remains
+sequential unless you set `--workers`. Console output, error exit codes, and
+replace-mode collision handling have changed. The interface defaults
+to German; add `--language en` for English.
+
+Read [UPGRADING.md](UPGRADING.md) before updating an existing installation,
+especially one used by scheduled jobs or with `--replace`. See
+[CHANGELOG.md](CHANGELOG.md) for the unreleased changes.
+
+`convert.sh` is unchanged. The new console modes, parallel conversion, and safer
+file replacement are available in `convert.py`.
+
 ## Features
 
 - Convert audio files to various formats
@@ -16,37 +32,30 @@ This repository contains two scripts (Python and Bash) for converting audio file
 
 ## Requirements
 
-- Python 3.6 or higher (will be installed automatically if possible)
-- ffmpeg (will be installed automatically if possible)
+- Python, installed before running `convert.py`.
+- Install both `ffmpeg` and `ffprobe` and make them available on `PATH`.
+- Rich (optional; the Python script offers to install it for the live console)
+
+Tested on Windows with Python 3.13.15 and FFmpeg 9.0.1. Other versions and
+operating systems still need testing before release.
+
+Earlier documentation listed Python 3.6, but the script uses features added in
+Python 3.7. The startup version check has not yet been corrected. Rich has its
+own Python version requirements.
 
 ### Supported Operating Systems
 
-#### Linux
-- Debian/Ubuntu (apt-get)
-- Fedora (dnf)
-- Arch Linux (pacman)
-- openSUSE (zypper)
-- Other distributions (wget fallback method)
+The Python script includes support for Windows, Linux/WSL, and macOS.
+In a non-headless run, if FFmpeg is missing, it can ask to install it using an
+available package manager: winget on Windows, Homebrew on macOS, or apt-get,
+dnf, pacman, or zypper on Linux. Installation is optional and can fail; manual
+installation is supported. The Python wget fallback has been removed.
 
-#### Windows
-- Automatic installation via winget (Windows Package Manager)
-- Manual installation option
-- Python script only
-- WSL (Windows Subsystem for Linux) fully supported
-- Recommended to use WSL for better compatibility
+Headless runs never install dependencies. Verify `ffmpeg -version` and
+`ffprobe -version` before unattended use; the startup check currently only
+checks for `ffmpeg`. On Windows, open a new terminal after changing `PATH`.
 
-#### macOS
-- Requires Homebrew (will provide installation instructions if missing)
-
-The scripts will automatically:
-1. Detect your operating system (including WSL)
-2. Check for required dependencies
-3. Try multiple installation methods:
-   - Native package manager (apt-get, dnf, pacman, zypper)
-   - wget fallback method for other Linux distributions
-   - Homebrew for macOS
-   - winget for Windows
-4. Provide manual installation instructions when needed
+The Bash script handles dependency installation separately.
 
 ## Installation
 
@@ -98,6 +107,27 @@ FFmpeg can be installed in several ways:
    - Extract the archive
    - Add the bin folder to your system PATH
 3. Using WSL (alternative approach)
+
+### Rich Live Console (Optional)
+
+Rich is only loaded when the Python script is started with `--rich`. If the
+package is missing in an interactive terminal, the script offers to install it
+for the same Python interpreter:
+
+```text
+Rich ist nicht installiert. Jetzt installieren? [J/n]
+```
+
+Press Enter or answer `j` to install it. If you decline or installation fails,
+the script exits with code `1`. Run again without `--rich` to use the plain console.
+
+Rich can also be installed manually:
+
+```powershell
+python -m pip install rich
+```
+
+Plain and headless runs neither import Rich nor ask to install it.
 
 ## Supported Formats
 
@@ -158,17 +188,65 @@ The script will guide you through the process, asking for:
 ### Command-line Mode
 
 #### Python Script
-```bash
-# Copy mode (output to new directory):
-python convert.py /path/to/input /path/to/output format bitrate
-# Example:
-python convert.py ~/Music ~/converted mp3 320k
 
-# Replace mode (convert in place):
-python convert.py /path/to/input format bitrate --replace
-# Example:
-python convert.py ~/Music mp3 320k --replace
+```bash
+# Copy mode with the default compact text console:
+python convert.py /path/to/input /path/to/output mp3 320k
+
+# Replace mode:
+python convert.py /path/to/input mp3 192k --replace
+
+# Rich full-screen dashboard with live summary and activity history:
+python convert.py /path/to/input mp3 192k --replace --rich
+
+# English Rich interface:
+python convert.py /path/to/input mp3 192k --replace --rich --language en
+
+# Silent automation run; output is written only to log and lock files:
+python convert.py /path/to/input mp3 192k --replace --headless
 ```
+
+The flags may appear before, between, or after positional arguments.
+`--rich` and `--headless` cannot be combined.
+
+### Parallel Conversion (Python)
+
+Use `--workers N` to encode up to N tracks concurrently. N must be a positive
+integer; the default is `1`, preserving sequential behavior for existing calls.
+For a NAS, start with two workers:
+
+```powershell
+python .\convert.py Q:\music mp3 192k --replace --rich --language en --workers 2
+```
+
+Conversion starts while the script scans the library. Files with other extensions
+are processed before files with the requested extension. Image and NFO files are
+copied after the audio finishes. The queue holds at most twice the worker count.
+Workers use the CPU, with the same audio settings as a single-worker run.
+
+Each conversion writes to a separate temporary file in the destination directory.
+In replace mode, the finished output replaces the destination before the source
+is removed. For example, converting `track.flac` to MP3 can replace an existing
+`track.mp3`. If encoding or saving the output fails, the source and existing
+destination are kept. If removing the source fails, both files remain and the
+operation is reported as failed.
+
+Copy mode skips existing audio destinations. If two sources would produce the
+same destination, only the first one selected is processed. On Linux and macOS,
+copy mode requires a destination filesystem that supports hard links. See
+[UPGRADING.md](UPGRADING.md) for details about replacement and resume behavior.
+
+Ctrl+C cancels queued work and stops active encoders (force-stopping after a
+five-second grace period when necessary). Finished results are recorded,
+temporary files are cleaned up, and completed lock progress is saved. Do not
+run multiple converter instances against the same library or shared lock file.
+To change the worker count, stop the current run cleanly and restart it.
+
+The Rich dashboard shows active workers, queued jobs, and filenames. The summary
+and log show successful conversions per minute; skipped files do not count.
+More workers are not always faster, especially on a NAS. Compare small runs with
+one, two, and four workers using copied sample inputs, fresh output folders, and
+a separate script directory and lock for each run. Use copy mode for these tests.
 
 #### Bash Script
 ```bash
@@ -183,56 +261,76 @@ python convert.py ~/Music mp3 320k --replace
 ./convert.sh ~/Music mp3 320k --replace
 ```
 
-## Console Output
+## Console Modes
 
-The scripts use color-coded output for better readability:
+| Mode | Flag | Behavior |
+| --- | --- | --- |
+| Plain | none | Compact built-in text display; Rich is not imported |
+| Rich | `--rich` | Full-screen dashboard with fixed totals, current operation, and recent activity |
+| Headless | `--headless` | No stdout, stderr, prompts, or dependency installation; log and lock only |
 
-- 🟣 Purple: Section headers and titles
-- 🔵 Blue: Information and skipped files
-- 🟢 Green: Successful operations
-- 🟡 Yellow: Warnings
-- 🔴 Red: Errors and failures
-- Bold: Numbers and important information
+### Rich Mode
 
-Example colored output:
-```
-🟣 Conversion Summary:
-==================================================
-Total files processed: Bold42
-🟢 Successfully converted: 35
-🔵 Skipped (already converted): 5
-🔴 Failed conversions: 2
+The Rich display keeps configuration, live totals, runtime, and the current
+operation fixed at the top of the terminal. Successful conversions, warnings,
+and errors appear in the recent-activity area below. The complete history is
+still written to the log file. The latest visible events and final summary
+remain in the normal console after the dashboard closes. This uses the
+terminal's alternate screen to keep the top
+area fixed; the activity area shows only the latest events that fit on screen.
+Warnings are yellow and errors are red. The fixed live status area includes:
 
-🟣 File counts by extension:
-------------------------------
-mp3: Bold20 files
-flac: Bold15 files
-jpg: Bold5 files
-nfo: Bold2 files
+- The current phase, active relative filenames, worker occupancy, and queue size
+- An immediate spinner for non-target audio formats
+- Determinate progress bars for existing target files and sidecars
+- Converted, correct, skipped, copied, and failed counters
+- Elapsed time and an estimate when a total is known
+- Successful conversions per minute
 
-🔴 Failed files:
-------------------------------
-- /path/to/failed/file1.mp3
-- /path/to/failed/file2.flac
+Already-correct, skipped, and copied files update counters and the detailed log
+without filling the visible history. Long paths are shortened only on screen;
+the log keeps their complete value.
 
-🔵 Log file: /path/to/script/logs/convert_20240726_123456.log
-```
+### Language
 
-Note: Colors are only shown in the console output. Log files contain plain text without color codes.
+Use `--language de` or `--language en` for console help, prompts, progress,
+warnings, and summaries. German is the default. Technical log messages remain
+in English for stable diagnostics.
+
+### Exit Codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Run completed without failed files |
+| `1` | Invalid arguments, mode conflict, missing dependency, or fatal error |
+| `2` | Run completed, but one or more files failed |
+| `130` | Interrupted with Ctrl+C after saving completed lock progress |
+
+Explicit `--help` output remains visible in every mode. Other valid headless
+runs produce no console output.
 
 ## Operation Modes
 
+The details in this section describe the updated Python implementation.
+
 ### Copy Mode
-- Creates a new directory structure matching the input
+- Creates destination directories for processed files; empty directories are not replicated
 - Converts audio files to the specified format
 - Copies image and NFO files to the new location
 - Preserves original files
 - Creates/updates lock file to track conversions
 - Generates detailed logs of all operations
 
+Copy mode is not a complete backup or synchronization operation. An audio file
+already matching the requested format/bitrate is counted as correct and is not
+copied. A matching lock entry can also skip a source even when using a different
+output directory. Check destination contents before relying on a copy. These
+limitations also exist in the published Python version.
+
 ### Replace Mode
 - Converts audio files in place
 - Replaces original files with converted versions
+- Replaces an existing same-basename target only after successful conversion, then removes the source
 - Preserves image and NFO files unchanged
 - Creates/updates lock file to track conversions
 - No output directory needed
@@ -243,8 +341,16 @@ Note: Colors are only shown in the console output. Log files contain plain text 
 The scripts maintain a lock file (.convert.lock) to track converted files and avoid unnecessary reprocessing.
 
 ### Lock File Location
-- Copy mode: `.convert.lock` in the output directory
-- Replace mode: `.convert.lock` in the input directory
+- Both modes: `.convert.lock` next to the script, in both Python and Bash.
+- `logs/` is also next to the script. This directory must be writable.
+- Keep the existing lock beside the replacement script to preserve progress.
+  The JSON entry format remains readable; no routine reset is required.
+
+This corrects the previous README; the published code already used this
+location. The lock is conversion history, not an exclusive process lock. It
+does not identify the output directory or detect changes to a source's contents.
+Run only one converter instance per library and lock file. See the upgrade
+guide for handling separate output destinations and rollback.
 
 ### Lock File Format
 ```json
@@ -269,10 +375,21 @@ The scripts maintain a lock file (.convert.lock) to track converted files and av
 - Tracks conversion parameters for each file
 
 ### Processing Order
-1. Check lock file for previous conversions
-2. Check current file format and bitrate
-3. Process only files that need conversion
-4. Update lock file with new conversions
+1. Python processes audio with other filename extensions first, then files with
+   the target extension, then sidecars in copy mode.
+2. Matching lock entries are skipped, except that a remaining non-target source
+   in replace mode is retried even if an old entry marks it processed.
+3. Target-extension files are probed for the requested format and bitrate;
+   other extensions go directly to encoding. FFmpeg detects content first,
+   with a forced-MP3 fallback for `.mp3` files if needed.
+4. Successful results are published and progress is saved in batches and on
+   normal completion or handled interruption. The JSON file is replaced
+   atomically; incomplete JSON recovery preserves a `.corrupt-*` backup first.
+
+If embedded artwork prevents encoding, Python retries audio-only. Such a
+successful retry can omit the embedded cover. Existing sidecar images are
+handled separately; artwork is not automatically extracted into a new sidecar.
+Metadata is passed to FFmpeg, but preservation depends on the destination format.
 
 ## Logging
 
@@ -423,11 +540,11 @@ Output directory:
    ```
    Converts music to a mobile-friendly format and size
 
-2. **Backup with Format Standardization**
+2. **Additional Converted Collection**
    ```bash
    python convert.py ~/Music ~/Backup mp3 320k
    ```
-   Creates a backup while standardizing all audio to one format
+   Converts eligible files to one format; verify output completeness as described in Copy Mode
 
 3. **Storage Space Optimization**
    ```bash

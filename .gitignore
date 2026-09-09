@@ -1,2 +1,16 @@
-# ignore test_files directory
+# Existing repository exclusion
 test_files/
+
+# Local conversion state and diagnostics
+.convert.lock*
+.convert-*
+logs/
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local command reminder, not application source
+/convert.txt
+
+# Release planning notes
+/.notes/
