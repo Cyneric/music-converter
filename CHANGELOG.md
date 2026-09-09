@@ -10,6 +10,7 @@ Read [UPGRADING.md](UPGRADING.md) for behavior changes affecting existing users.
 
 ### Added
 
+- MIT license with Christian Blank's copyright attribution.
 - Optional Rich dashboard, silent headless mode, and German/English interfaces.
 - `--workers N` with bounded queuing and one worker by default.
 - Worker activity, phase progress, runtime, throughput, and separate sidecar counts.

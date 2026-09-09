@@ -649,4 +649,6 @@ The command line is the supported interface. Internal Python helpers may change.
 
 ## License
 
+Licensed under the [MIT License](LICENSE).
+
 Copyright (c) 2024-2026 Christian Blank
