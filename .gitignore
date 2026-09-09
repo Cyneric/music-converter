@@ -3,6 +3,8 @@ test_files/
 
 # Local conversion state and diagnostics
 .convert.lock*
+.convert-state.sqlite3*
+.convert-state.runlock
 .convert-*
 logs/
 __pycache__/

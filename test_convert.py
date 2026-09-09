@@ -3,13 +3,30 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import sys
+import time
 import unittest
 from unittest.mock import patch
 
-import convert
+from music_converter import ffmpeg as convert
+from music_converter.models import ConversionJob
 
 
 class EncodingTests(unittest.TestCase):
+    def test_cancel_terminates_running_process(self):
+        stop = threading.Event()
+        timer = threading.Timer(0.2, stop.set)
+        timer.start()
+        started = time.monotonic()
+        try:
+            result = convert._run_ffmpeg([sys.executable, '-c', 'import time; time.sleep(30)'], stop)
+        finally:
+            timer.cancel()
+            timer.join()
+        self.assertTrue(result.cancelled)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertLess(time.monotonic() - started, 10)
+
     @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'FFmpeg required')
     def test_flac_named_mp3(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -21,7 +38,7 @@ class EncodingTests(unittest.TestCase):
                 '-f', 'flac', str(source),
             ], check=True)
             original = source.read_bytes()
-            job = convert.ConversionJob(str(source), source.name, 'mp3',
+            job = ConversionJob(str(source), source.name, 'mp3',
                                         str(output), str(output), False)
             result = convert.encode_job(job, '192k', threading.Event())
             self.assertEqual(result.returncode, 0, result.error)
@@ -35,7 +52,7 @@ class EncodingTests(unittest.TestCase):
             self.assertEqual(source.read_bytes(), original)
 
     def test_forced_mp3_fallback(self):
-        job = convert.ConversionJob('source.mp3', 'source.mp3', 'mp3',
+        job = ConversionJob('source.mp3', 'source.mp3', 'mp3',
                                     'out.mp3', 'out.mp3', False)
         failure = convert.EncodingResult(1, 'probe failed', False)
         success = convert.EncodingResult(0, '', False)
