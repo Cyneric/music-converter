@@ -4,6 +4,10 @@ Convert an audio library to another format with `convert.py`, or use the
 `convert.sh` launcher from Bash. Both commands use the same converter and handle
 metadata, image files, and NFO files.
 
+![Rich dashboard showing two active workers and recently converted tracks](docs/rich-dashboard.png)
+
+Use [`--rich`](#rich-mode) to show the live dashboard during conversion.
+
 ## Upgrading
 
 This update changes the converter since
