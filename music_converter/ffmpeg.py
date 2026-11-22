@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 from .models import EncodingResult
 
@@ -63,6 +64,8 @@ def _ffmpeg_args(job, bitrate, only_audio, force_input=False):
     args += ['-i', job.source]
     if only_audio:
         args += ['-map', '0:a']
+    if Path(job.destination).suffix.lower() == '.ogg':
+        args += ['-c:a', 'libvorbis']
     args += ['-b:a', bitrate, '-map_metadata', '0', '-id3v2_version', '3', job.temporary]
     return args
 

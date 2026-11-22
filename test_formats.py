@@ -56,10 +56,11 @@ class FormatTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / 'source.flac'
+            # The color input emits one frame. An output frame limit can stop audio on FFmpeg 6.
             subprocess.run([
                 'ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'sine=duration=0.3',
                 '-f', 'lavfi', '-i', 'color=c=blue:s=32x32:d=0.04', '-map', '0:a', '-map', '1:v',
-                '-c:a', 'flac', '-c:v', 'mjpeg', '-frames:v', '1', '-disposition:v', 'attached_pic',
+                '-c:a', 'flac', '-c:v', 'mjpeg', '-disposition:v', 'attached_pic',
                 '-metadata', 'title=Test title', '-metadata', 'artist=Test artist', str(source),
             ], check=True, capture_output=True)
             output = root / 'output.mp3'
@@ -73,6 +74,16 @@ class FormatTests(unittest.TestCase):
             self.assertEqual(data['format']['tags']['title'], 'Test title')
             self.assertEqual(data['format']['tags']['artist'], 'Test artist')
             self.assertTrue(any(stream.get('disposition', {}).get('attached_pic') for stream in data['streams']))
+
+
+class EncodeArgsTests(unittest.TestCase):
+    def test_ogg_selects_vorbis_on_both_attempts(self):
+        job = ConversionJob('source.flac', 'source.flac', 'flac', 'output.ogg', 'temp.ogg', False)
+        for audio_only in (False, True):
+            with self.subTest(audio_only=audio_only):
+                args = ffmpeg._ffmpeg_args(job, '192k', audio_only)
+                self.assertIn('-c:a', args)
+                self.assertEqual(args[args.index('-c:a') + 1], 'libvorbis')
 
 
 class ProbeTests(unittest.TestCase):

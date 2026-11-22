@@ -1,6 +1,6 @@
 # Upgrading from the published November 2024 version
 
-This guide covers the unreleased update since
+This guide covers the update since
 [`206689849685d773cc6ea83973a4f596a7928519`](https://github.com/Cyneric/music-converter/tree/206689849685d773cc6ea83973a4f596a7928519).
 The implementation now lives in `music_converter/`. Download the complete
 project folder and keep the package beside `convert.py` and `convert.sh`.
@@ -86,9 +86,9 @@ embedded artwork is provided.
 2. Download the full project into the existing directory so history remains
    beside the launchers. If moving installations, transfer the state files while
    preserving the source paths it refers to. Do not delete it as an upgrade step.
-3. Install Python 3.11+ and check `ffmpeg` and `ffprobe`. Both executables are
-   checked at startup. Local testing used Windows and Python 3.13.15; native
-   CI results for Windows, Linux, and macOS on 3.11 and 3.13 must be checked before release.
+3. Install Python 3.11+ and make `ffmpeg` and `ffprobe` available on `PATH`.
+   For Ogg Vorbis output, use an FFmpeg build with `libvorbis`. See the
+   [FFmpeg installation instructions](README.md#ffmpeg) for macOS.
 4. Adjust automation for exit codes `0` (completed without failed files), `1`
    (arguments/dependencies/fatal error), `2` (failed files), and `130` (handled
    processing interruption). Use `--headless` for silent jobs. Explicit `--help`

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0
 
 Compared with published commit
 [`2066898`](https://github.com/Cyneric/music-converter/commit/206689849685d773cc6ea83973a4f596a7928519)
@@ -66,3 +66,11 @@ Read [UPGRADING.md](UPGRADING.md) for behavior changes affecting existing users.
 - Documented the Python 3.11 minimum, package layout, SQLite migration, and rollback.
 - Explained when copy mode skips files and when embedded artwork may be omitted.
 - Explain the legacy import requirements and the limits of trusting old records.
+
+### Fixed
+
+- Mark `convert.sh` executable in Git so it can run directly after cloning.
+- Select `libvorbis` explicitly for `.ogg` output. The macOS tests use Homebrew's
+  `ffmpeg-full`, which includes that encoder.
+- Generate the embedded-cover test audio without a video frame limit that can
+  leave the fixture without audio on FFmpeg 6.

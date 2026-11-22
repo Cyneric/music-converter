@@ -15,7 +15,7 @@ to English; use `--language de` for German.
 
 Read [UPGRADING.md](UPGRADING.md) before updating an existing installation,
 especially one used by scheduled jobs or with `--replace`. See
-[CHANGELOG.md](CHANGELOG.md) for the unreleased changes.
+[CHANGELOG.md](CHANGELOG.md) for the full list of changes.
 
 `convert.sh` now starts `convert.py`. Both commands support the same console
 modes, parallel conversion, and file replacement behavior. Keep the launchers
@@ -37,10 +37,10 @@ and the `music_converter/` package together.
 
 - Python 3.11 or newer, installed before running the converter.
 - Install both `ffmpeg` and `ffprobe` and make them available on `PATH`.
+- Ogg Vorbis output needs an FFmpeg build with the `libvorbis` encoder.
 - Rich (optional; the Python script offers to install it for the live console)
 
-Tested on Windows with Python 3.13.15 and FFmpeg 9.0.1. Other versions and
-operating systems still need testing before release.
+GitHub Actions tests Python 3.11 and 3.13 on Windows, Linux, and macOS.
 
 Python 3.11 is the minimum for this release. Earlier versions are rejected at
 startup. Rich is optional; plain and headless modes use only the standard library.
@@ -117,6 +117,17 @@ FFmpeg can be installed in several ways:
    - Extract the archive
    - Add the bin folder to your system PATH
 3. Using WSL (alternative approach)
+
+On macOS, Homebrew's standard `ffmpeg` formula does not include `libvorbis`.
+For Ogg Vorbis output, install `ffmpeg-full` and put its `bin` directory first
+on `PATH`:
+
+```bash
+brew install ffmpeg-full
+export PATH="$(brew --prefix ffmpeg-full)/bin:$PATH"
+```
+
+Add the `export` to your shell startup file to keep it for future sessions.
 
 ### Rich Live Console (Optional)
 
